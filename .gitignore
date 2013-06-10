@@ -1,6 +1,7 @@
 dist
 cabal-dev
 log
+site_key.txt
 *.o
 *.hi
 *.chi
