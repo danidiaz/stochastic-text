@@ -82,7 +82,12 @@ app = makeSnaplet "app" "An snaplet example application." Nothing $ do
     -- you'll probably want to change this to a more robust auth backend.
     a <- nestSnaplet "auth" auth $
            initJsonFileAuthManager defAuthSettings sess "users.json"
+    p <- nestSnaplet "poem" poem $ makeSnaplet "StochasticText" 
+                                               "Provider of stochastic text"
+                                               Nothing $
+                                               do
+                                                   return $ StochasticText ["first verse","second verse"]
     addRoutes routes
     addAuthSplices h auth
-    return $ App h s a
+    return $ App h s a p
 
