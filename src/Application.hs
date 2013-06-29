@@ -22,8 +22,6 @@ data StochasticText = StochasticText
 ------------------------------------------------------------------------------
 data App = App
     { _heist :: Snaplet (Heist App)
-    , _sess :: Snaplet SessionManager
-    , _auth :: Snaplet (AuthManager App)
     , _poem :: Snaplet StochasticText
     }
 
