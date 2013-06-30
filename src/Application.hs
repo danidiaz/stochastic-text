@@ -9,8 +9,6 @@ module Application where
 import Control.Lens
 import Snap.Snaplet
 import Snap.Snaplet.Heist
-import Snap.Snaplet.Auth
-import Snap.Snaplet.Session
 
 import Data.Text
 
@@ -18,6 +16,8 @@ import Data.Text
 data StochasticText = StochasticText 
     { _verses :: [Text]
     }
+
+makeLenses ''StochasticText
 
 ------------------------------------------------------------------------------
 data App = App
