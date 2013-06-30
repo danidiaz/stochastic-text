@@ -56,11 +56,11 @@ verseSplice lens =
 app :: SnapletInit App App
 app = makeSnaplet "app" "An snaplet example application." Nothing $ do
     h <- nestSnaplet "" heist $ heistInit "templates"
-    p <- nestSnaplet "poem" poem $ makeSnaplet "StochasticText" 
-                                               "Provider of stochastic text"
-                                               Nothing $
-                                               do
-                                                   return $ StochasticText ["first verse","second verse"]
+    p <- nestSnaplet "poem" poem $ 
+            makeSnaplet "StochasticText" 
+                        "Provider of stochastic text"
+                        Nothing 
+                        (return . StochasticText $ ["first verse","second verse"])
     addConfig h $ mempty {
             hcCompiledSplices = [ ("verse", verseSplice poem)  ] 
         } 
