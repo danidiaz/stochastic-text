@@ -1,0 +1,184 @@
+dd all standard auth splices to a Heist-enabled application.
+--
+-- This adds the following splices:
+-- \<ifLoggedIn\>
+-- \<ifLoggedOut\>
+-- \<loggedInUser\>
+addAuthSplices
+  :: HasHeist b
+  => Snaplet (Heist b)
+  -> SnapletLens b (AuthManager b)
+      -- ^ A lens reference to 'AuthManager'
+  -> Initializer b v ()
+addAuthSplices h auth = addConfig h $ mempty
+    { hcInterpretedSplices = [ ("ifLoggedIn", ifLoggedIn auth)
+                             , ("ifLoggedOut", ifLoggedOut auth)
+                             , ("loggedInUser", loggedInUser auth)
+                             ]
+    , hcCompiledSplices = compiledAuthSplices auth
+    }
+
+
+------------------------------------------------------------------------------
+-- | List containing compiled splices for ifLoggedIn, ifLoggedOut, and
+-- loggedInUser.
+compiledAuthSplices :: SnapletLens b (AuthManager b)
+                    -> [(Text, SnapletCSplice b)]
+compiledAuthSplices auth =
+    [ ("ifLoggedIn", cIfLoggedIn auth)
+    , ("ifLoggedOut", cIfLoggedOut auth)
+    , ("loggedInUser", cLoggedInUser auth)
+    ]
+
+
+------------------------------------------------------------------------------
+-- | Function to generate interpreted splices from an AuthUser.
+userISplices :: Monad m => AuthUser -> [(Text, I.Splice m)]
+userISplices AuthUser{..} =
+    [ ("userId", I.textSplice $ maybe "-" unUid userId)
+    , ("userLogin", I.textSplice userLogin)
+    , ("userEmail", I.textSplice $ fromMaybe "-" userEmail)
+    , ("userActive", I.textSplice $ T.pack $ show $ isNothing userSuspendedAt)
+    , ("userLoginCount", I.textSplice $ T.pack $ show userLoginCount)
+    , ("userFailedCount", I.textSplice $ T.pack $ show userFailedLoginCount)
+    , ("userLoginAt", I.textSplice $ maybe "-" (T.pack . show) userCurrentLoginAt)
+    , ("userLastLoginAt", I.textSplice $ maybe "-" (T.pack . show) userLastLoginAt)
+    , ("userSuspendedAt", I.textSplice $ maybe "-" (T.pack . show) userSuspendedAt)
+    , ("userLoginIP", I.textSplice $ maybe "-" decodeUtf8 userCurrentLoginIp)
+    , ("userLastLoginIP", I.textSplice $ maybe "-" decodeUtf8 userLastLoginIp)
+    , ("userIfActive", ifISplice (isNothing userSuspendedAt))
+    , ("userIfSuspended", ifISplice (isJust userSuspendedAt))
+    ]
+
+
+------------------------------------------------------------------------------
+-- | Compiled splices for AuthUser.
+userCSplices :: Monad m => [(Text, C.Promise AuthUser -> C.Splice m)]
+userCSplices = (C.pureSplices $ C.textSplices
+    [ ("userId", maybe "-" unUid . userId)
+    , ("userLogin", userLogin)
+    , ("userEmail", fromMaybe "-" . userEmail)
+    , ("userActive", T.pack . show . isNothing . userSuspendedAt)
+    , ("userLoginCount", T.pack . show . userLoginCount)
+    , ("userFailedCount", T.pack . show . userFailedLoginCount)
+    , ("userLoginAt", maybe "-" (T.pack . show) . userCurrentLoginAt)
+    , ("userLastLoginAt", maybe "-" (T.pack . show) . userLastLoginAt)
+    , ("userSuspendedAt", maybe "-" (T.pack . show) . userSuspendedAt)
+    , ("userLoginIP", maybe "-" decodeUtf8 . userCurrentLoginIp)
+    , ("userLastLoginIP", maybe "-" decodeUtf8 . userLastLoginIp)
+    ]) ++
+    [ ("userIfActive", ifCSplice (isNothing . userSuspendedAt))
+    , ("userIfSuspended", ifCSplice (isJust . userSuspendedAt))
+    ]
+
+
+------------------------------------------------------------------------------
+-- | A splice that can be used to check for existence of a user. If a user is
+-- present, this will run the contents of the node.
+--
+-- > <ifLoggedIn> Show this when there is a logged in user </ifLoggedIn>
+ifLoggedIn :: SnapletLens b (AuthManager b) -> SnapletISplice b
+ifLoggedIn auth = do
+    chk <- lift $ withTop auth isLoggedIn
+    case chk of
+      True -> getParamNode >>= return . X.childNodes
+      False -> return []
+
+
+------------------------------------------------------------------------------
+-- | A splice that can be used to check for existence of a user. If a user is
+-- present, this will run the contents of the node.
+--
+-- > <ifLoggedIn> Show this when there is a logged in user </ifLoggedIn>
+cIfLoggedIn :: SnapletLens b (AuthManager b) -> SnapletCSplice b
+cIfLoggedIn auth = do
+    children <- C.promiseChildren
+    return $ C.yieldRuntime $ do
+        chk <- lift $ withTop auth isLoggedIn
+        case chk of
+          True -> children
+          False -> return mempty
+
+
+------------------------------------------------------------------------------
+-- | A splice that can be used to check for absence of a user. If a user is
+-- not present, this will run the contents of the node.
+--
+-- > <ifLoggedOut> Show this when there is a logged in user </ifLoggedOut>
+ifLoggedOut :: SnapletLens b (AuthManager b) -> SnapletISplice b
+ifLoggedOut auth = do
+    chk <- lift $ withTop auth isLoggedIn
+    case chk of
+      False -> getParamNode >>= return . X.childNodes
+      True -> return []
+
+
+------------------------------------------------------------------------------
+-- | A splice that can be used to check for absence of a user. If a user is
+-- not present, this will run the contents of the node.
+--
+-- > <ifLoggedOut> Show this when there is a logged in user </ifLoggedOut>
+cIfLoggedOut :: SnapletLens b (AuthManager b) -> SnapletCSplice b
+cIfLoggedOut auth = do
+    children <- C.promiseChildren
+    return $ C.yieldRuntime $ do
+        chk <- lift $ withTop auth isLoggedIn
+        case chk of
+          False -> children
+          True -> return mempty
+
+
+-------------------------------------------------------------------------------
+-- | A splice that will simply print the current user's login, if
+-- there is one.
+loggedInUser :: SnapletLens b (AuthManager b) -> SnapletISplice b
+loggedInUser auth = do
+    u <- lift $ withTop auth currentUser
+    maybe (return []) (I.textSplice . userLogin) u 
+
+
+-------------------------------------------------------------------------------
+-- | A splice that will simply print the current user's login, if
+-- there is one.
+cLoggedInUser :: SnapletLens b (AuthManager b) -> SnapletCSplice b
+cLoggedInUser auth =
+    return $ C.yieldRuntimeText $ do
+        u <- lift $ withTop auth currentUser
+        return $ maybe "" userLogin u
+
+
+type SnapletHeist b m a = HeistT (Handler b b) m a
+
+type SnapletCSplice b = SnapletHeist b IO (DList (Chunk (Handler b b)))
+
+type SnapletISplice b = SnapletHeist b (Handler b b) Template
+
+type Template = [Node]
+
+(compiled)
+Splice n = HeistT n IO (DList (Chunk n))
+
+A compiled Splice is a HeistT computation that returns a DList (Chunk m).
+
+
+addConfig :: Snaplet (Heist b) -> HeistConfig (Handler b b) -> Initializer b v ()
+
+Adds more HeistConfig data using mappend with whatever is currently there. This is the preferred method for adding all four kinds of splices as well as new templates.
+
+
+data HeistConfig m Source
+
+Constructors
+HeistConfig  
+hcInterpretedSplices :: [(Text, Splice m)]
+Interpreted splices are the splices that Heist has always had. They return a list of nodes and are processed at runtime.
+hcLoadTimeSplices :: [(Text, Splice IO)]
+Load time splices are like interpreted splices because they return a list of nodes. But they are like compiled splices because they are processed once at load time. All of Heist's built-in splices should be used as load time splices.
+hcCompiledSplices :: [(Text, Splice m)]
+Compiled splices return a DList of Chunks and are processed at load time to generate a runtime monad action that will be used to render the template.
+hcAttributeSplices :: [(Text, AttrSplice m)]
+Attribute splices are bound to attribute names and return a list of attributes.
+hcTemplateLocations :: [TemplateLocation]
+A list of all the locations that Heist should get its templates from.
+
+

@@ -8,7 +8,7 @@
   <body>
     <h1><poemtitle/></h1> 
     <div id="content">
-      <poem/>
+        <verse><p><versetext/></p></verse>
     </div>
   </body>
 </html>
