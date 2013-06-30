@@ -20,6 +20,7 @@ import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist
 import           Snap.Util.FileServe
+import           Stochastic
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.Trans
@@ -42,14 +43,6 @@ routes = [ ("/poem",     with poem handlePoem)
          , ("",          serveDirectory "static")
          ]
 
-verseSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
-verseSplice lens = 
-    let splicemap :: Monad n => [(T.Text, C.Promise T.Text -> C.Splice n)]
-        splicemap =  C.pureSplices . C.textSplices $ [("versetext",id)]
-
-        vs :: RuntimeSplice (Handler b b) [T.Text]
-        vs = lift . withTop lens $ use verses
-    in C.manyWithSplices C.runChildren splicemap vs
 
 ------------------------------------------------------------------------------
 -- | The application initializer.
@@ -61,9 +54,7 @@ app = makeSnaplet "app" "An snaplet example application." Nothing $ do
                         "Provider of stochastic text"
                         Nothing 
                         (return . StochasticText $ ["first verse","second verse"])
-    addConfig h $ mempty {
-            hcCompiledSplices = [ ("verse", verseSplice poem)  ] 
-        } 
+    addVerseSplices h poem 
     addRoutes routes
     return $ App h p
 
