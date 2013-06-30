@@ -42,11 +42,12 @@ routes = [ ("/poem",     with poem handlePoem)
          , ("",          serveDirectory "static")
          ]
 
-verseSplice :: SnapletLens b StochasticText ->  C.Splice (Handler b b)
+verseSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
 verseSplice lens = 
     let splicemap :: Monad n => [(T.Text, C.Promise T.Text -> C.Splice n)]
         splicemap =  C.pureSplices . C.textSplices $ [("versetext",id)]
 
+        vs :: RuntimeSplice (Handler b b) [T.Text]
         vs = lift . withTop lens $ use verses
     in C.manyWithSplices C.runChildren splicemap vs
 
