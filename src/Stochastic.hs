@@ -51,3 +51,14 @@ addVerseSplices h poem = addConfig h $ mempty
         {
             hcCompiledSplices = [ ("verse", verseSplice poem)  ] 
         } 
+
+------------------------------------------------------------------------------
+initVerses :: SnapletInit b StochasticText
+initVerses  = makeSnaplet "StochasticText" 
+                          "Provider of stochastic text"
+                          Nothing 
+                          (return . StochasticText $ ["first verse","second verse"])
+
+------------------------------------------------------------------------------
+
+

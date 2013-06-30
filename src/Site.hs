@@ -49,11 +49,7 @@ routes = [ ("/poem",     with poem handlePoem)
 app :: SnapletInit App App
 app = makeSnaplet "app" "An snaplet example application." Nothing $ do
     h <- nestSnaplet "" heist $ heistInit "templates"
-    p <- nestSnaplet "poem" poem $ 
-            makeSnaplet "StochasticText" 
-                        "Provider of stochastic text"
-                        Nothing 
-                        (return . StochasticText $ ["first verse","second verse"])
+    p <- nestSnaplet "poem" poem initVerses 
     addVerseSplices h poem 
     addRoutes routes
     return $ App h p
