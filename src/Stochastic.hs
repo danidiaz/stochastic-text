@@ -11,9 +11,10 @@ module Stochastic where
 import Control.Lens
 import Snap.Snaplet
 
+import           System.FilePath
 import           Data.Text
-
 import           Data.Monoid
+import qualified Data.ByteString as B
 import qualified Data.Text as T
 import           Control.Monad
 import           Control.Monad.Trans
@@ -56,7 +57,8 @@ addVerseSplices h poem = addConfig h $ mempty
 initVerses :: SnapletInit b StochasticText
 initVerses  = do
     makeSnaplet "stochastic" "Provider of stochastic text" Nothing $ do
-        path <- getSnapletFilePath 
+        path <- getSnapletFilePath
+        versebytes <- liftIO . B.readFile $ path </> "sample_poem.js"
         liftIO $ putStrLn ("the path is" <> path)
         return . StochasticText $ ["first verse","second verse"]
 
