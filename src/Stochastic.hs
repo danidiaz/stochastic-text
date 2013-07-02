@@ -54,10 +54,11 @@ addVerseSplices h poem = addConfig h $ mempty
 
 ------------------------------------------------------------------------------
 initVerses :: SnapletInit b StochasticText
-initVerses  = makeSnaplet "StochasticText" 
-                          "Provider of stochastic text"
-                          Nothing 
-                          (return . StochasticText $ ["first verse","second verse"])
+initVerses  = do
+    makeSnaplet "stochastic" "Provider of stochastic text" Nothing $ do
+        path <- getSnapletFilePath 
+        liftIO $ putStrLn ("the path is" <> path)
+        return . StochasticText $ ["first verse","second verse"]
 
 ------------------------------------------------------------------------------
 
