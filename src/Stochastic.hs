@@ -19,6 +19,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import           Control.Applicative
+import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.Trans
 import           Snap.Core
@@ -67,6 +68,9 @@ initVerses  = do
         case versesEither of
             Left err -> printInfo $ "Error loading poem: " <> T.pack err
             Right _ -> return () 
+        let langolier = lift . forkIO $ forever $  
+                threadDelay 1000000 >> putStrLn "This is a refresh action."
+        addPostInitHook $ \x -> langolier >> return x 
         let verses = either (const ["buffalo"]) id versesEither
         return $ StochasticText verses
 
