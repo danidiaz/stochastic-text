@@ -12,10 +12,13 @@ import Control.Lens
 import Snap.Snaplet
 
 import           System.FilePath
+import           Data.Aeson
 import           Data.Text
 import           Data.Monoid
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
+import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans
 import           Snap.Core
@@ -57,10 +60,15 @@ addVerseSplices h poem = addConfig h $ mempty
 initVerses :: SnapletInit b StochasticText
 initVerses  = do
     makeSnaplet "stochastic" "Provider of stochastic text" Nothing $ do
-        path <- getSnapletFilePath
-        versebytes <- liftIO . B.readFile $ path </> "sample_poem.js"
-        liftIO $ putStrLn ("the path is" <> path)
-        return . StochasticText $ ["first verse","second verse"]
+        path <- flip combine "sample_poem.js" <$> getSnapletFilePath
+        printInfo $ "Loading poem from: " <> T.pack path
+        versebytes <- liftIO . B.readFile $ path
+        let versesEither = eitherDecode' . BL.fromChunks $ [ versebytes ]
+        case versesEither of
+            Left err -> printInfo $ "Error loading poem: " <> T.pack err
+            Right _ -> return () 
+        let verses = either (const ["buffalo"]) id versesEither
+        return $ StochasticText verses
 
 ------------------------------------------------------------------------------
 

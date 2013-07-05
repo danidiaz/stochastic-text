@@ -1,3 +1,2 @@
-{
-    "verses": [ "verse a", "verse b" ]
-}
+[ "verse a", "verse b" ]
+
