@@ -29,7 +29,8 @@ import           Control.Monad.State.Class
 import           Heist
 import qualified Heist.Interpreted as I
 import qualified Heist.Compiled as C
-
+import           Blaze.ByteString.Builder
+import           Blaze.ByteString.Builder.Char.Utf8
 ------------------------------------------------------------------------------
 data StochasticText = StochasticText 
     { _verses :: [Text]
@@ -37,12 +38,24 @@ data StochasticText = StochasticText
 
 makeLenses ''StochasticText
 
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+---- | Converts pure text splices to pure Builder splices.
+textSplicesUtf8 :: [(Text, a -> Text)] -> [(Text, a -> Builder)]
+textSplicesUtf8 = C.mapSnd textSpliceUtf8
+
+
+--------------------------------------------------------------------------------
+-- | Converts a pure text splice function to a pure Builder splice function.
+textSpliceUtf8 :: (a -> Text) -> a -> Builder
+textSpliceUtf8 f = fromText . f
 
 ------------------------------------------------------------------------------
 verseSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
 verseSplice lens = 
     let splicemap :: Monad n => [(T.Text, C.Promise T.Text -> C.Splice n)]
-        splicemap =  C.pureSplices . C.textSplices $ [("versetext",id)]
+        splicemap =  C.pureSplices . textSplicesUtf8 $ [("versetext",id)]
 
         vs :: RuntimeSplice (Handler b b) [T.Text]
         vs = lift . withTop lens $ use verses
