@@ -79,9 +79,9 @@ initVerses  = do
     makeSnaplet "stochastic" "Provider of stochastic text" Nothing $ do
         path <- flip combine "sample_poem.js" <$> getSnapletFilePath
         printInfo $ "Loading poem from: " <> T.pack path
-        versebytes <- liftIO . B.readFile $ path
+        versebytes <- liftIO $ BL.fromChunks . pure <$> B.readFile path
         let versesE = fmapL ("Error loading poem:"<>) $ fmapL T.pack $ do 
-                lmap <- eitherDecode' . BL.fromChunks $ [versebytes] 
+                lmap <- eitherDecode' versebytes
                 note "Language not found" $ M.lookup ("french"::T.Text) lmap
             (verses,msg) = case versesE of
                 Left err -> ( ["buffalo"], Just err )
