@@ -28,5 +28,20 @@
         "And sometimes in summer, when impure suns",
         "Made her wearily stretch out across the countryside,",
         "To sleep carelessly in the shadow of her breasts, ",
-        "Like a peaceful village at the foot of a mountain."]
+        "Like a peaceful village at the foot of a mountain."],
+    "spanish":
+       ["Cuando Natura en su inspiración pujante",
+        "Concebía cada día hijos monstruosos,",
+        "Me hubiera placido vivir cerca de una joven giganta,",
+        "Como a los pies de una reina un gato voluptuoso.",
+        "Me hubiera agradado ver su cuerpo florecer con su alma",
+        "Y crecer libremente en sus terribles juegos;",
+        "Adivinar si su corazón cobija una sombría llama",
+        "En las húmedas brumas que flotan en sus ojos;",
+        "Recorrer a mi gusto sus magníficas formas;",
+        "Arrastrarme en la pendiente de sus rodillas enormes,",
+        "Y a veces, en estío, cuando los soles malsanos,",
+        "Laxa, la hacen tenderse a través de la campiña,",
+        "Dormir despreocupadamente a la sombra de sus senos,",
+        "Como una plácida aldea al pie de una montaña."]
 }
