@@ -15,6 +15,7 @@ import           System.FilePath
 import           Data.Aeson
 import           Data.Text
 import           Data.Monoid
+import qualified Data.Map as M
 import qualified Data.ByteString as B
 import qualified Data.Traversable as TR
 import qualified Data.ByteString.Lazy as BL
@@ -23,6 +24,7 @@ import           Control.Applicative
 import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.Trans
+import           Control.Error
 import           Snap.Core
 import           Snap.Snaplet
 import           Snap.Snaplet.Heist
@@ -78,9 +80,11 @@ initVerses  = do
         path <- flip combine "sample_poem.js" <$> getSnapletFilePath
         printInfo $ "Loading poem from: " <> T.pack path
         versebytes <- liftIO . B.readFile $ path
-        let (verses,msg) = case eitherDecode' . BL.fromChunks $ [versebytes] of
-                Left err -> let err' = "Error loading poem: " <> T.pack err 
-                            in ( ["buffalo"], Just err' )
+        let versesE = fmapL ("Error loading poem:"<>) $ fmapL T.pack $ do 
+                lmap <- eitherDecode' . BL.fromChunks $ [versebytes] 
+                note "Language not found" $ M.lookup ("french"::T.Text) lmap
+            (verses,msg) = case versesE of
+                Left err -> ( ["buffalo"], Just err )
                 Right v ->  ( v, Nothing ) 
         TR.traverse printInfo msg
         liftIO . forkIO . forever $  
