@@ -16,6 +16,7 @@ import           Data.Aeson
 import           Data.Text
 import           Data.Monoid
 import qualified Data.ByteString as B
+import qualified Data.Traversable as TR
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import           Control.Applicative
@@ -77,14 +78,13 @@ initVerses  = do
         path <- flip combine "sample_poem.js" <$> getSnapletFilePath
         printInfo $ "Loading poem from: " <> T.pack path
         versebytes <- liftIO . B.readFile $ path
-        let versesEither = eitherDecode' . BL.fromChunks $ [ versebytes ]
-        case versesEither of
-            Left err -> printInfo $ "Error loading poem: " <> T.pack err
-            Right _ -> return () 
-        let langolier = lift . forkIO $ forever $  
-                threadDelay 1000000 >> putStrLn "This is a refresh action."
-        addPostInitHook $ \x -> langolier >> return x 
-        let verses = either (const ["buffalo"]) id versesEither
+        let (verses,msg) = case eitherDecode' . BL.fromChunks $ [versebytes] of
+                Left err -> let err' = "Error loading poem: " <> T.pack err 
+                            in ( ["buffalo"], Just err' )
+                Right v ->  ( v, Nothing ) 
+        TR.traverse printInfo msg
+        liftIO . forkIO . forever $  
+            threadDelay 1000000 >> putStrLn "This is a refresh action."
         return $ StochasticText verses
 
 ------------------------------------------------------------------------------
