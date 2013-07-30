@@ -13,13 +13,14 @@ import Snap.Snaplet
 
 import           System.FilePath
 import           Data.Aeson
-import           Data.Text
 import           Data.Monoid
 import qualified Data.Map as M
+import qualified Data.IntMap as I
 import qualified Data.ByteString as B
 import qualified Data.Traversable as TR
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
+import           Data.Maybe
 import           Control.Applicative
 import           Control.Concurrent
 import           Control.Monad
@@ -36,7 +37,7 @@ import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 ------------------------------------------------------------------------------
 data StochasticText = StochasticText 
-    { _verses :: [Text]
+    { _verses :: [T.Text]
     }
 
 makeLenses ''StochasticText
@@ -45,13 +46,13 @@ makeLenses ''StochasticText
 
 ------------------------------------------------------------------------------
 ---- | Converts pure text splices to pure Builder splices.
-textSplicesUtf8 :: [(Text, a -> Text)] -> [(Text, a -> Builder)]
+textSplicesUtf8 :: [(T.Text, a -> T.Text)] -> [(T.Text, a -> Builder)]
 textSplicesUtf8 = C.mapSnd textSpliceUtf8
 
 
 --------------------------------------------------------------------------------
 -- | Converts a pure text splice function to a pure Builder splice function.
-textSpliceUtf8 :: (a -> Text) -> a -> Builder
+textSpliceUtf8 :: (a -> T.Text) -> a -> Builder
 textSpliceUtf8 f = fromText . f
 
 ------------------------------------------------------------------------------
@@ -74,15 +75,33 @@ addVerseSplices h poem = addConfig h $ mempty
         } 
 
 ------------------------------------------------------------------------------
+
+type Langname = T.Text
+type Verse = T.Text
+type Multiverse = (I.IntMap Langname, [I.IntMap Verse])
+
+instance Monoid a => Monoid (ZipList a) where
+    mappend = liftA2 mappend
+    mempty = ZipList $ repeat mempty
+
+compile :: M.Map Langname [Verse] -> Multiverse
+compile m = (I.fromList pairs, multiverse)
+    where pairs =  zip [0..] $ M.keys m
+          monoidal (number,name) = 
+                ZipList . map (I.singleton number) <$> M.lookup name m
+          multiverse = getZipList . mconcat . catMaybes . map monoidal $ pairs
+
+------------------------------------------------------------------------------
+
 initVerses :: SnapletInit b StochasticText
 initVerses  = do
     makeSnaplet "stochastic" "Provider of stochastic text" Nothing $ do
         path <- flip combine "sample_poem.js" <$> getSnapletFilePath
         printInfo $ "Loading poem from: " <> T.pack path
         versebytes <- liftIO $ BL.fromChunks . pure <$> B.readFile path
-        let versesE = fmapL ("Error loading poem:"<>) $ fmapL T.pack $ do 
-                lmap <- eitherDecode' versebytes
-                note "Language not found" $ M.lookup ("french"::T.Text) lmap
+        let versesE = fmapL ("Error loading poem:"<>) $ do 
+                versions <- fmapL T.pack $ eitherDecode' versebytes
+                note "Language not found" $ M.lookup ("french"::T.Text) versions
             (verses,msg) = case versesE of
                 Left err -> ( ["buffalo"], Just err )
                 Right v ->  ( v, Nothing ) 
