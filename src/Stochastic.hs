@@ -78,14 +78,13 @@ addVerseSplices h poem = addConfig h $ mempty
 
 type Langname = T.Text
 type Verse = T.Text
-type Multiverse = (I.IntMap Langname, [I.IntMap Verse])
 
 instance Monoid a => Monoid (ZipList a) where
     mappend = liftA2 mappend
     mempty = ZipList $ repeat mempty
 
-compile :: M.Map Langname [Verse] -> Multiverse
-compile m = (I.fromList pairs, multiverse)
+compile :: M.Map Langname [Verse] -> (I.IntMap Langname, Int, [I.IntMap Verse])
+compile m = (I.fromList pairs, length multiverse, multiverse)
     where pairs =  zip [0..] $ M.keys m
           monoidal (number,name) = 
                 ZipList . map (I.singleton number) <$> M.lookup name m
