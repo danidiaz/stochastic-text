@@ -107,14 +107,14 @@ initVerses  = do
 
             decoded :: Either String (M.Map Langname [Verse])
             decoded = eitherDecode' versebytes
-            versesE = bimap (mappend "Error loading poem: " . T.pack)
-                            (compile filler . M.elems)
-                            decoded
+            poemsE = bimap (mappend "Error loading poem: " . T.pack)
+                           (compile filler . M.elems)
+                           decoded
 
             fallback = (1, 1, filler)
-            (langCount,verseCount,poems) = maybe fallback id (hush versesE)
+            (langCount,verseCount,poems) = maybe fallback id (hush poemsE)
             verses = distribute poems
-        TR.traverse printInfo $ Flip versesE
+        TR.traverse printInfo $ Flip poemsE
         liftIO . forkIO . forever $  
             threadDelay 1000000 >> putStrLn "This is a refresh action."
         return . StochasticText $ 
