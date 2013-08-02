@@ -85,19 +85,15 @@ addVerseSplices h poem = addConfig h $ mempty
 prepend :: S.Stream a -> [a] -> S.Stream a 
 prepend stream = F.foldr (<|) stream 
 
+compile :: (S.Stream (S.Stream a)) -> 
+           [[a]] -> 
+           (Int, Int, S.Stream (S.Stream a))
+compile filler xss = (length xss, F.maximum . map length $ xss, grid)
+    where 
+        grid = prepend <$> filler <*> prepend (S.repeat []) xss 
+
 type Langname = T.Text
 type Verse = T.Text
-
-fillerPoems :: S.Stream (S.Stream T.Text)
-fillerPoems = S.repeat fillerVerses
-
-fillerVerses :: S.Stream T.Text  
-fillerVerses = S.repeat "buffalo"
-
-compile :: M.Map Langname [Verse] -> (Int, Int, S.Stream (S.Stream Verse))
-compile m = (F.maximum . map length $ es, length es, multiverse es) where
-    es = M.elems m :: [[Verse]]
-    multiverse =  distribute . prepend fillerPoems . map (prepend fillerVerses)
 
 ------------------------------------------------------------------------------
 
@@ -107,15 +103,22 @@ initVerses  = do
         path <- flip combine "sample_poem.js" <$> getSnapletFilePath
         printInfo $ "Loading poem from: " <> T.pack path
         versebytes <- liftIO $ BL.fromChunks . pure <$> B.readFile path
-        let versesE = bimap (mappend "Error loading poem: " . T.pack)
-                            compile
-                            (eitherDecode' versebytes)
-            fallback = (1, 1, S.repeat . S.repeat $ "buffalo")
-            (versec,langc,verses) = maybe fallback id (hush versesE)
+        let filler = S.repeat . S.repeat $ "buffalo" 
+
+            decoded :: Either String (M.Map Langname [Verse])
+            decoded = eitherDecode' versebytes
+            versesE = bimap (mappend "Error loading poem: " . T.pack)
+                            (compile filler . M.elems)
+                            decoded
+
+            fallback = (1, 1, filler)
+            (langCount,verseCount,poems) = maybe fallback id (hush versesE)
+            verses = distribute poems
         TR.traverse printInfo $ Flip versesE
         liftIO . forkIO . forever $  
             threadDelay 1000000 >> putStrLn "This is a refresh action."
-        return $ StochasticText $ take versec . F.toList . fmap S.head $ verses
+        return . StochasticText $ 
+            take verseCount . F.toList . fmap S.head $ verses
 
 ------------------------------------------------------------------------------
 
