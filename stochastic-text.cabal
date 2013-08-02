@@ -37,6 +37,9 @@ Executable stochastic-text
     filepath                  >= 1.1,
     aeson                     >= 0.6,
     errors                    >= 1.4,
+    distributive              >= 0.3.1,
+    streams                   >= 3.1.1,
+    bifunctors                >= 3.2,
     blaze-builder             ,
     containers
 
