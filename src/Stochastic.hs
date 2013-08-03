@@ -24,11 +24,13 @@ import qualified Data.ByteString as B
 import qualified Data.Traversable as TR
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
+import qualified Data.Stream.Infinite as Z
 import qualified Data.Stream.Infinite.Skew as S
 import           Data.Stream.Infinite.Skew ((<|))
 import           Data.Maybe
 import           Control.Applicative
 import           Control.Concurrent
+import           Control.Concurrent.MVar
 import           Control.Monad
 import           Control.Monad.Trans
 import           Control.Error
@@ -46,13 +48,37 @@ import           Control.Monad.Random
 import           System.Random
 
 ------------------------------------------------------------------------------
+
+type Langname = T.Text
+type Verse = T.Text
+
+type Multiverse = S.Stream Verse
+
+data  Sempiternity = Sempiternity 
+    { 
+        _origin :: S.Stream Integer,
+        _mutations :: S.Stream (Integer,Integer) -- verse id, lang id 
+    }
+
+makeLenses ''Sempiternity 
+
 data StochasticText = StochasticText 
-    { _verses :: [T.Text]
+    {   _languageCount :: Integer,
+        _verseCount :: Integer,
+        _verseStream :: S.Stream Multiverse,
+
+        _sempiternity :: MVar Sempiternity
     }
 
 makeLenses ''StochasticText
 
-------------------------------------------------------------------------------
+present :: MonadIO m => StochasticText -> m [T.Text]  
+present st = do
+    sempiternity' <- liftIO . readMVar $ st ^. sempiternity 
+    let vs = (S.!!) <$> (st ^. verseStream) <*> (sempiternity' ^. origin)
+        howMany = fromIntegral (st ^. verseCount)
+    return $ take howMany . F.toList $ vs 
+
 
 ------------------------------------------------------------------------------
 ---- | Converts pure text splices to pure Builder splices.
@@ -72,7 +98,7 @@ verseSplice lens =
         splicemap =  C.pureSplices . textSplicesUtf8 $ [("versetext",id)]
 
         vs :: RuntimeSplice (Handler b b) [T.Text]
-        vs = lift . withTop lens $ use verses
+        vs = lift . withTop lens $ get >>= present
     in C.manyWithSplices C.runChildren splicemap vs
 
 ------------------------------------------------------------------------------
@@ -91,13 +117,11 @@ prepend stream = F.foldr (<|) stream
 
 compile :: (S.Stream (S.Stream a)) -> 
            [[a]] -> 
-           (Int, Int, S.Stream (S.Stream a))
-compile filler xss = (length xss, F.maximum . map length $ xss, grid)
+           (Integer, Integer, S.Stream (S.Stream a))
+compile filler xss = (fi $ length xss, fi $ F.maximum . map length $ xss, grid)
     where 
         grid = prepend <$> filler <*> prepend (S.repeat []) xss 
-
-type Langname = T.Text
-type Verse = T.Text
+        fi = fromIntegral
 
 ------------------------------------------------------------------------------
 
@@ -122,10 +146,12 @@ initVerses  = do
         stdgen <- liftIO getStdGen 
         let (indexStream,stdgen') = flip runRand stdgen $
                 TR.sequence . S.repeat $ getRandomR (0,pred langCount) 
-            verses' = (S.!!) <$> verses <*> fmap fromIntegral indexStream
+            sempiternity' = Sempiternity indexStream (S.repeat (1,1))
+        snaplet <- StochasticText langCount verseCount verses <$>
+                        (liftIO . newMVar $ sempiternity')
         liftIO . forkIO . forever $  
             threadDelay 1000000 >> putStrLn "This is a refresh action."
-        return $ StochasticText (take verseCount $ F.toList verses')
+        return snaplet 
 
 ------------------------------------------------------------------------------
 
