@@ -41,6 +41,10 @@ import qualified Heist.Interpreted as I
 import qualified Heist.Compiled as C
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
+
+import           Control.Monad.Random
+import           System.Random
+
 ------------------------------------------------------------------------------
 data StochasticText = StochasticText 
     { _verses :: [T.Text]
@@ -115,10 +119,13 @@ initVerses  = do
             (langCount,verseCount,poems) = maybe fallback id (hush poemsE)
             verses = distribute poems
         TR.traverse printInfo $ Flip poemsE
+        stdgen <- liftIO getStdGen 
+        let (indexStream,stdgen') = flip runRand stdgen $
+                TR.sequence . S.repeat $ getRandomR (0,pred langCount) 
+            verses' = (S.!!) <$> verses <*> fmap fromIntegral indexStream
         liftIO . forkIO . forever $  
             threadDelay 1000000 >> putStrLn "This is a refresh action."
-        return . StochasticText $ 
-            take verseCount . F.toList . fmap S.head $ verses
+        return $ StochasticText (take verseCount $ F.toList verses')
 
 ------------------------------------------------------------------------------
 
