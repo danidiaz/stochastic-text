@@ -55,15 +55,14 @@ type Verse = T.Text
 type Multiverse = S.Stream Verse
 
 data  Sempiternity = Sempiternity 
-    { 
-        _origin :: S.Stream Integer,
+    {   _origin :: S.Stream Integer,
         _mutations :: S.Stream (Integer,Integer) -- verse id, lang id 
     }
 
 makeLenses ''Sempiternity 
 
 data StochasticText = StochasticText 
-    {   _languageCount :: Integer,
+    {   _langCount :: Integer,
         _verseCount :: Integer,
         _verseStream :: S.Stream Multiverse,
 
@@ -117,11 +116,8 @@ prepend stream = F.foldr (<|) stream
 
 compile :: (S.Stream (S.Stream a)) -> 
            [[a]] -> 
-           (Integer, Integer, S.Stream (S.Stream a))
-compile filler xss = (fi $ length xss, fi $ F.maximum . map length $ xss, grid)
-    where 
-        grid = prepend <$> filler <*> prepend (S.repeat []) xss 
-        fi = fromIntegral
+           S.Stream (S.Stream a)
+compile filler xss = prepend <$> filler <*> prepend (S.repeat []) xss 
 
 ------------------------------------------------------------------------------
 
@@ -131,23 +127,21 @@ initVerses  = do
         path <- flip combine "sample_poem.js" <$> getSnapletFilePath
         printInfo $ "Loading poem from: " <> T.pack path
         versebytes <- liftIO $ BL.fromChunks . pure <$> B.readFile path
-        let filler = S.repeat . S.repeat $ "buffalo" 
-
-            decoded :: Either String (M.Map Langname [Verse])
-            decoded = eitherDecode' versebytes
-            poemsE = bimap (mappend "Error loading poem: " . T.pack)
-                           (compile filler . M.elems)
-                           decoded
-
-            fallback = (1, 1, filler)
-            (langCount,verseCount,poems) = maybe fallback id (hush poemsE)
-            verses = distribute poems
-        TR.traverse printInfo $ Flip poemsE
+        let mapE = bimap (mappend "Error loading poem: " . T.pack)
+                         id 
+                         (eitherDecode' versebytes)
+        TR.traverse printInfo $ Flip mapE
+        let poemz = maybe M.empty id $ hush mapE :: M.Map Langname [Verse]
+            elemz = M.elems poemz -- discard the language names
+            langCount' = fromIntegral $ length elemz
+            verseCount' = fromIntegral . F.maximum . map length $ elemz
+            filler = S.repeat . S.repeat $ "buffalo" 
+            verses = distribute $ compile filler elemz         
         stdgen <- liftIO getStdGen 
         let (indexStream,stdgen') = flip runRand stdgen $
-                TR.sequence . S.repeat $ getRandomR (0,pred langCount) 
+                TR.sequence . S.repeat $ getRandomR (0,pred langCount') 
             sempiternity' = Sempiternity indexStream (S.repeat (1,1))
-        snaplet <- StochasticText langCount verseCount verses <$>
+        snaplet <- StochasticText langCount' verseCount' verses <$>
                         (liftIO . newMVar $ sempiternity')
         liftIO . forkIO . forever $  
             threadDelay 1000000 >> putStrLn "This is a refresh action."
