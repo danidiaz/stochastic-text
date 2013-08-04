@@ -16,6 +16,9 @@ import           Data.Foldable as F
 import           Data.Distributive as D
 import           Data.Aeson
 import           Data.Monoid
+import           Data.List
+import           Data.Thyme.Clock
+import           Data.AffineSpace
 import           Data.Bifunctor
 import           Data.Bifunctor.Flip
 import qualified Data.Map as M
@@ -54,9 +57,16 @@ type Verse = T.Text
 
 type Multiverse = S.Stream Verse
 
+asecond :: DiffTime 
+asecond = (10^6)^.microDiffTime 
+
 data  Sempiternity = Sempiternity 
-    {   _origin :: S.Stream Integer,
-        _mutations :: S.Stream (Integer,Integer) -- verse id, lang id 
+    {   
+        _baseTime :: UTCTime,  
+        _iteration :: Integer,
+        _origin :: S.Stream Integer,
+        -- Verse id, lang id. Assume each mutation last a second.
+        _mutations :: S.Stream (Integer,Integer) 
     }
 
 makeLenses ''Sempiternity 
@@ -75,8 +85,7 @@ present :: MonadIO m => StochasticText -> m [T.Text]
 present st = do
     sempiternity' <- liftIO . readMVar $ st ^. sempiternity 
     let vs = (S.!!) <$> (st ^. verseStream) <*> (sempiternity' ^. origin)
-        howMany = fromIntegral (st ^. verseCount)
-    return $ take howMany . F.toList $ vs 
+    return $ genericTake (st ^. verseCount) . F.toList $ vs 
 
 
 ------------------------------------------------------------------------------
@@ -121,6 +130,19 @@ compile filler xss = prepend <$> filler <*> prepend (S.repeat []) xss
 
 ------------------------------------------------------------------------------
 
+futurify :: StdGen -> 
+            (Integer,Integer) -> 
+            (S.Stream Integer, S.Stream (Integer,Integer))
+futurify seed (langCount',verseCount') = flip evalRand seed $ do
+    seed' <- getSplit :: Rand StdGen StdGen
+    let rLangIndex = getRandomR (0, pred langCount') 
+        rVerseIndex = getRandomR (0, pred verseCount') 
+        mutations = flip evalRand seed' $ do
+            TR.sequence . S.repeat $ (,) <$> rVerseIndex <*> rLangIndex
+    (,) <$> (TR.sequence . S.repeat $ rLangIndex) <*> return mutations
+
+------------------------------------------------------------------------------
+
 initVerses :: SnapletInit b StochasticText
 initVerses  = do
     makeSnaplet "stochastic" "Provider of stochastic text" Nothing $ do
@@ -133,16 +155,15 @@ initVerses  = do
         TR.traverse printInfo $ Flip mapE
         let poemz = maybe M.empty id $ hush mapE :: M.Map Langname [Verse]
             elemz = M.elems poemz -- discard the language names
-            langCount' = fromIntegral $ length elemz
-            verseCount' = fromIntegral . F.maximum . map length $ elemz
+            langCount' = genericLength elemz
+            verseCount' = F.maximum . map genericLength $ elemz
             filler = S.repeat . S.repeat $ "buffalo" 
             verses = distribute $ compile filler elemz         
         stdgen <- liftIO getStdGen 
-        let (indexStream,stdgen') = flip runRand stdgen $
-                TR.sequence . S.repeat $ getRandomR (0,pred langCount') 
-            sempiternity' = Sempiternity indexStream (S.repeat (1,1))
+        let (origin',mutations) = futurify stdgen (langCount',verseCount')
+        now <- liftIO getCurrentTime 
         snaplet <- StochasticText langCount' verseCount' verses <$>
-                        (liftIO . newMVar $ sempiternity')
+                       (liftIO . newMVar $ Sempiternity now 0 origin' mutations)
         liftIO . forkIO . forever $  
             threadDelay 1000000 >> putStrLn "This is a refresh action."
         return snaplet 
