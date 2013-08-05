@@ -84,7 +84,7 @@ makeLenses ''StochasticText
 present :: MonadIO m => StochasticText -> m [T.Text]  
 present st = do
     sempiternity' <- liftIO . readMVar $ st ^. sempiternity 
-    let vs = (S.!!) <$> (st ^. verseStream) <*> (sempiternity' ^. origin)
+    let vs = S.index <$> (sempiternity'^.origin) <*> (st^.verseStream) 
     return $ genericTake (st ^. verseCount) . F.toList $ vs 
 
 
