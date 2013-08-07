@@ -60,13 +60,19 @@ type Multiverse = S.Stream Verse
 asecond :: DiffTime 
 asecond = (10^6)^.microDiffTime 
 
+data Change = Change
+    {   _iteration :: Integer,
+        _diffTime :: DiffTime,
+        _verseIndex :: Integer,
+        _languageIndex :: Integer
+    }
+
+makeLenses ''Change
+
 data  Sempiternity = Sempiternity 
-    {   
-        _baseTime :: UTCTime,  
-        _iteration :: Integer,
+    {   _baseTime :: UTCTime,  
         _origin :: S.Stream Integer,
-        -- Verse id, lang id. Assume each mutation last a second.
-        _mutations :: S.Stream (Integer,Integer) 
+        _mutations :: S.Stream Change
     }
 
 makeLenses ''Sempiternity 
@@ -130,16 +136,19 @@ compile filler xss = prepend <$> filler <*> prepend (S.repeat []) xss
 
 ------------------------------------------------------------------------------
 
-futurify :: StdGen -> 
-            (Integer,Integer) -> 
-            (S.Stream Integer, S.Stream (Integer,Integer))
-futurify seed (langCount',verseCount') = flip evalRand seed $ do
-    seed' <- getSplit :: Rand StdGen StdGen
-    let rLangIndex = getRandomR (0, pred langCount') 
-        rVerseIndex = getRandomR (0, pred verseCount') 
-        mutations = flip evalRand seed' $ do
-            TR.sequence . S.repeat $ (,) <$> rVerseIndex <*> rLangIndex
-    (,) <$> (TR.sequence . S.repeat $ rLangIndex) <*> return mutations
+ristream :: StdGen -> Integer -> S.Stream Integer    
+ristream seed bound =  flip evalRand seed $ do
+    TR.sequence . S.repeat $ getRandomR (0, pred bound) 
+
+futurify :: StdGen -> Integer -> Integer -> S.Stream Change
+futurify seed langCount' verseCount' = 
+    let indexStream = S.tabulate id
+        diffTimeStream = S.repeat asecond
+        (s',s'') = runRand getSplit seed
+    in Change <$> indexStream 
+              <*> diffTimeStream 
+              <*> ristream s' verseCount'
+              <*> ristream s'' langCount'
 
 ------------------------------------------------------------------------------
 
@@ -149,21 +158,21 @@ initVerses  = do
         path <- flip combine "sample_poem.js" <$> getSnapletFilePath
         printInfo $ "Loading poem from: " <> T.pack path
         versebytes <- liftIO $ BL.fromChunks . pure <$> B.readFile path
-        let mapE = bimap (mappend "Error loading poem: " . T.pack)
-                         id 
+        let mapE = first (mappend "Error loading poem: " . T.pack)
                          (eitherDecode' versebytes)
         TR.traverse printInfo $ Flip mapE
+        (s',s'') <- liftIO $ (,) <$> newStdGen <*> newStdGen  
+        now <- liftIO getCurrentTime 
         let poemz = maybe M.empty id $ hush mapE :: M.Map Langname [Verse]
             elemz = M.elems poemz -- discard the language names
             langCount' = genericLength elemz
             verseCount' = F.maximum . map genericLength $ elemz
             filler = S.repeat . S.repeat $ "buffalo" 
             verses = distribute $ compile filler elemz         
-        stdgen <- liftIO getStdGen 
-        let (origin',mutations) = futurify stdgen (langCount',verseCount')
-        now <- liftIO getCurrentTime 
+            origin' = ristream s' langCount' 
+            mutations' = futurify s'' langCount' verseCount' 
         snaplet <- StochasticText langCount' verseCount' verses <$>
-                       (liftIO . newMVar $ Sempiternity now 0 origin' mutations)
+                       (liftIO . newMVar $ Sempiternity now origin' mutations')
         liftIO . forkIO . forever $  
             threadDelay 1000000 >> putStrLn "This is a refresh action."
         return snaplet 
