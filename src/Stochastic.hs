@@ -57,17 +57,25 @@ type Verse = T.Text
 
 type Multiverse = S.Stream Verse
 
-asecond :: DiffTime 
-asecond = (10^6)^.microDiffTime 
+asecond :: NominalDiffTime 
+asecond = (10^6)^.microNominalDiffTime 
 
 data Change = Change
     {   _iteration :: Integer,
-        _diffTime :: DiffTime,
+        _diffTime :: NominalDiffTime,
         _verseIndex :: Integer,
         _languageIndex :: Integer
     }
 
 makeLenses ''Change
+
+calctimes :: S.Stream Change -> UTCTime -> S.Stream (Change,UTCTime)  
+calctimes changes time = 
+    let go :: UTCTime -> Change -> (UTCTime,(Change,UTCTime))   
+        go base change = 
+            let newtime = base .+^ (change ^. diffTime)
+            in (newtime,(change,newtime)) 
+    in snd $ TR.mapAccumL go time changes
 
 data  Sempiternity = Sempiternity 
     {   _baseTime :: UTCTime,  
@@ -81,7 +89,6 @@ data StochasticText = StochasticText
     {   _langCount :: Integer,
         _verseCount :: Integer,
         _verseStream :: S.Stream Multiverse,
-
         _sempiternity :: MVar Sempiternity
     }
 
@@ -136,19 +143,17 @@ compile filler xss = prepend <$> filler <*> prepend (S.repeat []) xss
 
 ------------------------------------------------------------------------------
 
-ristream :: StdGen -> Integer -> S.Stream Integer    
-ristream seed bound =  flip evalRand seed $ do
+ristream :: Integer -> StdGen -> S.Stream Integer    
+ristream bound seed = flip evalRand seed $ do
     TR.sequence . S.repeat $ getRandomR (0, pred bound) 
 
 futurify :: StdGen -> Integer -> Integer -> S.Stream Change
 futurify seed langCount' verseCount' = 
-    let indexStream = S.tabulate id
-        diffTimeStream = S.repeat asecond
-        (s',s'') = runRand getSplit seed
-    in Change <$> indexStream 
-              <*> diffTimeStream 
-              <*> ristream s' verseCount'
-              <*> ristream s'' langCount'
+    let (s',s'') = runRand getSplit seed
+    in Change <$> S.tabulate id
+              <*> S.repeat asecond
+              <*> ristream verseCount' s'
+              <*> ristream langCount' s''
 
 ------------------------------------------------------------------------------
 
@@ -169,7 +174,7 @@ initVerses  = do
             verseCount' = F.maximum . map genericLength $ elemz
             filler = S.repeat . S.repeat $ "buffalo" 
             verses = distribute $ compile filler elemz         
-            origin' = ristream s' langCount' 
+            origin' = ristream langCount' s'
             mutations' = futurify s'' langCount' verseCount' 
         snaplet <- StochasticText langCount' verseCount' verses <$>
                        (liftIO . newMVar $ Sempiternity now origin' mutations')
