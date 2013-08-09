@@ -86,12 +86,11 @@ data StochasticText = StochasticText
 
 makeLenses ''StochasticText
 
-present :: MonadIO m => UTCTime -> StochasticText -> m [T.Text]  
-present time snaplet = do
-    sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
-    let sempiternity'' =  purgePast time sempiternity'
-        vs = S.index <$> (sempiternity''^.origin) <*> (snaplet^.verseStream) 
-    return $ genericTake (snaplet^.verseCount) . F.toList $ vs 
+present :: MonadIO m => StochasticText -> m [T.Text]  
+present st = do
+    sempiternity' <- liftIO . readMVar $ st ^. sempiternity 
+    let vs = S.index <$> (sempiternity'^.origin) <*> (st^.verseStream) 
+    return $ genericTake (st ^. verseCount) . F.toList $ vs 
 
 calctimes :: UTCTime -> S.Stream Change -> S.Stream (Change,UTCTime)  
 calctimes time changes = 
@@ -107,19 +106,13 @@ splitByTime time stream =
     in (fmap fst prefix, fmap fst stream') 
 
 applyChanges :: [Change] -> S.Stream Integer -> S.Stream Integer
-applyChanges changes stream = 
-    let go stream change = S.adjust (change^.verseIndex) 
-                                    (const $ change^.languageIndex) 
-                                    stream
-    in F.foldl' go stream changes 
+applyChanges changes = 
+    let go change stream = S.adjust (change ^. verseIndex) 
+                                  (const $ change ^. languageIndex) 
+    in F.foldl' go 
 
 purgePast :: UTCTime -> Sempiternity -> Sempiternity 
-purgePast time sempiternity = 
-    let (changes,stream) =  splitByTime time
-                          . calctimes (sempiternity^.baseTime) 
-                          $ sempiternity^.mutations   
-        newBase = applyChanges changes (sempiternity^.origin)
-    in Sempiternity time newBase stream 
+purgePast time sempiternity = undefined 
 
 ------------------------------------------------------------------------------
 ---- | Converts pure text splices to pure Builder splices.
@@ -138,8 +131,7 @@ verseSplice lens =
         splicemap =  C.pureSplices . textSplicesUtf8 $ [("versetext",id)]
 
         vs :: RuntimeSplice (Handler b b) [T.Text]
-        vs = lift . withTop lens $ ((,) <$> liftIO getCurrentTime <*> get) >>=  
-                                   (liftIO . uncurry present)
+        vs = lift . withTop lens $ get >>= present
     in C.manyWithSplices C.runChildren splicemap vs
 
 ------------------------------------------------------------------------------
