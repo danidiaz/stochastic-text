@@ -103,7 +103,7 @@ calctimes time changes =
 
 splitByTime :: UTCTime -> S.Stream (Change,UTCTime) -> ([Change],S.Stream Change)
 splitByTime time stream = 
-    let (prefix,stream') = S.split ( (<time) . snd ) stream
+    let (prefix,stream') = S.split ( (time<) . snd ) stream
     in (fmap fst prefix, fmap fst stream') 
 
 applyChanges :: [Change] -> S.Stream Integer -> S.Stream Integer
