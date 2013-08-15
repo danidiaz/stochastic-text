@@ -27,6 +27,9 @@ import qualified Data.ByteString as B
 import qualified Data.Traversable as TR
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
+import           Data.Text.Lazy (toStrict)
+import           Data.Text.Lazy.Builder (toLazyText)
+import           Data.Text.Lazy.Builder.Int (decimal)
 import qualified Data.Stream.Infinite as Z
 import qualified Data.Stream.Infinite.Skew as S
 import           Data.Stream.Infinite.Skew ((<|))
@@ -86,12 +89,12 @@ data StochasticText = StochasticText
 
 makeLenses ''StochasticText
 
-present :: MonadIO m => UTCTime -> StochasticText -> m [T.Text]  
+present :: MonadIO m => UTCTime -> StochasticText -> m [(Integer,T.Text)]  
 present time snaplet = do
     sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
     let sempiternity'' =  purgePast time sempiternity'
         vs = S.index <$> (sempiternity''^.origin) <*> (snaplet^.verseStream) 
-    return $ genericTake (snaplet^.verseCount) . F.toList $ vs 
+    return $ genericTake (snaplet^.verseCount) . F.toList . S.indexed $ vs 
 
 calctimes :: UTCTime -> S.Stream Change -> S.Stream (Change,UTCTime)  
 calctimes time changes = 
@@ -122,36 +125,6 @@ purgePast time sempiternity =
     in Sempiternity time newBase stream 
 
 ------------------------------------------------------------------------------
----- | Converts pure text splices to pure Builder splices.
-textSplicesUtf8 :: [(T.Text, a -> T.Text)] -> [(T.Text, a -> Builder)]
-textSplicesUtf8 = C.mapSnd textSpliceUtf8
-
---------------------------------------------------------------------------------
--- | Converts a pure text splice function to a pure Builder splice function.
-textSpliceUtf8 :: (a -> T.Text) -> a -> Builder
-textSpliceUtf8 f = fromText . f
-
-------------------------------------------------------------------------------
-verseSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
-verseSplice lens = 
-    let splicemap :: Monad n => [(T.Text, C.Promise T.Text -> C.Splice n)]
-        splicemap =  C.pureSplices . textSplicesUtf8 $ [("versetext",id)]
-
-        vs :: RuntimeSplice (Handler b b) [T.Text]
-        vs = lift . withTop lens $ ((,) <$> liftIO getCurrentTime <*> get) >>=  
-                                   (liftIO . uncurry present)
-    in C.manyWithSplices C.runChildren splicemap vs
-
-------------------------------------------------------------------------------
-addVerseSplices :: HasHeist b => Snaplet (Heist b) 
-                                   -> SnapletLens b StochasticText
-                                   -> Initializer b v ()
-addVerseSplices h poem = addConfig h $ mempty 
-        {
-            hcCompiledSplices = [ ("verse", verseSplice poem)  ] 
-        } 
-
-------------------------------------------------------------------------------
 
 prepend :: S.Stream a -> [a] -> S.Stream a 
 prepend stream = F.foldr (<|) stream 
@@ -174,6 +147,57 @@ futurify seed langCount' verseCount' =
               <*> S.repeat asecond
               <*> ristream verseCount' s'
               <*> ristream langCount' s''
+
+------------------------------------------------------------------------------
+
+--manyWithSplices' :: Monad n
+--                => C.Splice n
+--                -> [(T.Text, C.Promise a -> C.Splice n)]
+--                -> [(T.Text, C.Promise a -> AttrSplice n)]
+--                -> RuntimeSplice n [a]
+--                -> C.Splice n
+--manyWithSplices' splice splices attrsplices runtimeAction = do
+--    p <- C.newEmptyPromise
+--    let splices' = C.mapSnd (flip ($) p) splices
+--        attrsplices' = C.mapSnd (flip ($) p) attrsplices
+--    chunks <- C.withLocalSplices splices' attrsplices' splice
+--    return $ C.yieldRuntime $ do
+--        items <- runtimeAction
+--        res <- forM items $ \item -> C.putPromise p item >> C.codeGen chunks
+--        return $ mconcat res
+
+------------------------------------------------------------------------------
+---- | Converts pure text splices to pure Builder splices.
+textSplicesUtf8 :: [(T.Text, a -> T.Text)] -> [(T.Text, a -> Builder)]
+textSplicesUtf8 = C.mapSnd textSpliceUtf8
+
+--------------------------------------------------------------------------------
+-- | Converts a pure text splice function to a pure Builder splice function.
+textSpliceUtf8 :: (a -> T.Text) -> a -> Builder
+textSpliceUtf8 f = fromText . f
+
+------------------------------------------------------------------------------
+verseSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
+verseSplice lens = 
+    let splicemap :: Monad n => [(T.Text, C.Promise (Integer,T.Text) -> C.Splice n)]
+        splicemap =  C.pureSplices . textSplicesUtf8 $ 
+                        [ ("verse", snd), 
+                          ("verseid", toStrict. toLazyText . decimal . fst ) ]
+
+        vs :: RuntimeSplice (Handler b b) [(Integer,T.Text)]
+        vs = lift . withTop lens $ ((,) <$> liftIO getCurrentTime <*> get) >>= 
+                                   (liftIO . uncurry present)
+    in C.manyWithSplices C.runChildren splicemap vs
+
+------------------------------------------------------------------------------
+
+addVerseSplices :: HasHeist b => Snaplet (Heist b) 
+                                   -> SnapletLens b StochasticText
+                                   -> Initializer b v ()
+addVerseSplices h poem = addConfig h $ mempty 
+        {
+            hcCompiledSplices = [ ("verses", verseSplice poem)  ] 
+        } 
 
 ------------------------------------------------------------------------------
 
