@@ -179,8 +179,13 @@ poemSplice lens = do
     let vs :: RuntimeSplice (Handler b b) [(Integer,T.Text)]
         vs = lift . withTop lens $ get >>= liftIO . present
     chunks1 <- return . C.yieldRuntimeEffect $ vs >>= C.putPromise p
-    chunks2 <- C.withLocalSplices [("verses",verseSplice p)] [] C.runChildren
-    return . C.yieldRuntime . C.codeGen $ chunks1 <> chunks2 
+    let localSplices =  [ 
+                           ("poemtitle", return $ C.yieldPureText "foooo"),
+                           ("verses",verseSplice p) 
+                        ]
+    chunks2 <- C.withLocalSplices localSplices [] C.runChildren
+    return $ chunks1 <> chunks2 
+    -- return . C.yieldRuntime . C.codeGen $ chunks1 <> chunks2 
 
 ------------------------------------------------------------------------------
 
