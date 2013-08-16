@@ -50,7 +50,7 @@ app :: SnapletInit App App
 app = makeSnaplet "app" "An snaplet example application." Nothing $ do
     h <- nestSnaplet "" heist $ heistInit "templates"
     p <- nestSnaplet "poem" poem initVerses 
-    addVerseSplices h poem 
+    addPoemSplices h poem 
     addRoutes routes
     return $ App h p
 

@@ -53,6 +53,8 @@ import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Monad.Random
 import           System.Random
 
+import           Debug.Trace
+
 ------------------------------------------------------------------------------
 
 type Langname = T.Text
@@ -163,25 +165,31 @@ showIntegral :: Integral a => a -> T.Text
 showIntegral = toStrict. toLazyText . decimal
 
 ------------------------------------------------------------------------------
-verseSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
-verseSplice lens = 
+verseSplice :: C.Promise [(Integer,T.Text)] ->  C.Splice (Handler b b)
+verseSplice promise = 
     let splicemap :: Monad n => [(T.Text, C.Promise (Integer,T.Text) -> C.Splice n)]
-        splicemap =  C.pureSplices . textSplicesUtf8 $ 
+        splicemap = C.pureSplices . textSplicesUtf8 $ 
                         [ ("verse", snd), 
                           ("verseid", showIntegral . fst ) ]
+    in C.manyWithSplices C.runChildren splicemap $ C.getPromise promise 
 
-        vs :: RuntimeSplice (Handler b b) [(Integer,T.Text)]
+poemSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
+poemSplice lens = do
+    p <- C.newEmptyPromise
+    let vs :: RuntimeSplice (Handler b b) [(Integer,T.Text)]
         vs = lift . withTop lens $ get >>= liftIO . present
-    in C.manyWithSplices C.runChildren splicemap vs
+    chunks1 <- return . C.yieldRuntimeEffect $ vs >>= C.putPromise p
+    chunks2 <- C.withLocalSplices [("verses",verseSplice p)] [] C.runChildren
+    return . C.yieldRuntime . C.codeGen $ chunks1 <> chunks2 
 
 ------------------------------------------------------------------------------
 
-addVerseSplices :: HasHeist b => Snaplet (Heist b) 
+addPoemSplices :: HasHeist b => Snaplet (Heist b) 
                                    -> SnapletLens b StochasticText
                                    -> Initializer b v ()
-addVerseSplices h poem = addConfig h $ mempty 
+addPoemSplices h poem = addConfig h $ mempty 
         {
-            hcCompiledSplices = [ ("verses", verseSplice poem)  ] 
+            hcCompiledSplices = [ ("poem", poemSplice poem)  ] 
         } 
 
 ------------------------------------------------------------------------------
