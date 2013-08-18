@@ -175,17 +175,17 @@ poemSplice lens = C.withSplices C.runChildren
         [ 
           ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) ),
           ("poemtitle", C.pureSplice . textSpliceUtf8 $ (^._2) ),
-          ("verses",    C.repromise' (return . (^._3)) verseSplice ) 
+          ("verses",  verseSplice  . fmap (^._3) . C.getPromise) 
         ] $ lift . withTop lens $ liftIO . present =<< get
 
-verseSplice :: C.Promise [(Integer,T.Text)] -> C.Splice (Handler b b)
-verseSplice promise = 
+verseSplice :: RuntimeSplice (Handler b b) [(Integer,T.Text)] -> C.Splice (Handler b b)
+verseSplice handler = 
     let splicefuncs = C.pureSplices . textSplicesUtf8 $ 
                         [ 
                           ("verseid", showIntegral . (^._1)),
                           ("verse", (^._2)) 
                         ]
-    in C.manyWithSplices C.runChildren splicefuncs $ C.getPromise promise 
+    in C.manyWithSplices C.runChildren splicefuncs handler
 
 ------------------------------------------------------------------------------
 
