@@ -9,7 +9,7 @@
     <poem>
         <div>
             <h1><poemtitle/></h1> 
-            <div id="content">
+            <div id="poembody" iteration="${iteration}">
                 <verses><p verseid="${verseid}"><verse/></p></verses>
             </div>
         </div>
