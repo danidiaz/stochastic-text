@@ -176,7 +176,7 @@ poemSplice lens = C.withSplices C.runChildren
           ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) ),
           ("poemtitle", C.pureSplice . textSpliceUtf8 $ (^._2) ),
           ("verses",    C.repromise' (return . (^._3)) verseSplice ) 
-        ] $ lift . withTop lens $ get >>= liftIO . present
+        ] $ lift . withTop lens $ liftIO . present =<< get
 
 verseSplice :: C.Promise [(Integer,T.Text)] -> C.Splice (Handler b b)
 verseSplice promise = 
