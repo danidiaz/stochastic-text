@@ -170,22 +170,27 @@ showIntegral = toStrict. toLazyText . decimal
 
 ------------------------------------------------------------------------------
 
-poemSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
-poemSplice lens = C.withSplices C.runChildren 
-        [ 
+present' :: forall b. SnapletLens b StochasticText -> 
+            RuntimeSplice (Handler b b) (Integer,T.Text,[(Integer,T.Text)])
+present' lens = lift . withTop lens $ liftIO . present =<< get
+
+poemSplice :: RuntimeSplice (Handler b b) (Integer,T.Text,[(Integer,T.Text)]) -> 
+              C.Splice (Handler b b)
+poemSplice = C.withSplices C.runChildren [ 
           ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) ),
           ("poemtitle", C.pureSplice . textSpliceUtf8 $ (^._2) ),
           ("verses",  verseSplice  . fmap (^._3) . C.getPromise) 
-        ] $ lift . withTop lens $ liftIO . present =<< get
+        ]
 
-verseSplice :: RuntimeSplice (Handler b b) [(Integer,T.Text)] -> C.Splice (Handler b b)
-verseSplice handler = 
-    let splicefuncs = C.pureSplices . textSplicesUtf8 $ 
-                        [ 
-                          ("verseid", showIntegral . (^._1)),
-                          ("verse", (^._2)) 
-                        ]
-    in C.manyWithSplices C.runChildren splicefuncs handler
+verseSplice :: RuntimeSplice (Handler b b) [(Integer,T.Text)] -> 
+               C.Splice (Handler b b)
+verseSplice = C.manyWithSplices C.runChildren splicefuncs 
+    where
+    splicefuncs = C.pureSplices . textSplicesUtf8 $ 
+                    [ 
+                      ("verseid", showIntegral . (^._1)),
+                      ("verse", (^._2)) 
+                    ]
 
 ------------------------------------------------------------------------------
 
@@ -194,7 +199,7 @@ addPoemSplices :: HasHeist b => Snaplet (Heist b)
                                    -> Initializer b v ()
 addPoemSplices h poem = addConfig h $ mempty 
         {
-            hcCompiledSplices = [ ("poem", poemSplice poem)  ] 
+            hcCompiledSplices = [ ("poem", poemSplice $ present' poem) ] 
         } 
 
 ------------------------------------------------------------------------------
