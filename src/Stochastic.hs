@@ -169,34 +169,28 @@ showIntegral :: Integral a => a -> T.Text
 showIntegral = toStrict. toLazyText . decimal
 
 ------------------------------------------------------------------------------
-verseSplice :: Simple Lens s [(Integer,T.Text)] ->
-               C.Promise s ->  
-               C.Splice (Handler b b)
-verseSplice lens promise = 
-    let splicefuncs :: Monad n => [(T.Text, C.Promise (Integer,T.Text) -> C.Splice n)]
-        splicefuncs = C.pureSplices . textSplicesUtf8 $ 
-                        [ ("verseid", showIntegral . fst),
-                          ("verse", snd) ]
-    in C.manyWithSplices C.runChildren splicefuncs $ 
-            flip (^.) lens <$> C.getPromise promise 
-
-spliceField :: Simple Lens s t -> (t -> T.Text) -> C.Promise s -> C.Splice (Handler b b)
-spliceField lens toText promise =  
-    return $ C.yieldRuntimeText $    
-        toText . flip (^.) lens <$> C.getPromise promise 
 
 poemSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
 poemSplice lens = do
     p <- C.newEmptyPromise
     let vs :: RuntimeSplice (Handler b b) (Integer,T.Text,[(Integer,T.Text)])
         vs = lift . withTop lens $ get >>= liftIO . present
-    chunks1 <- return . C.yieldRuntimeEffect $ vs >>= C.putPromise p
-    let splices =  [ ("iteration", spliceField _1 showIntegral p),
-                     ("poemtitle", spliceField _2 id p),
-                     ("verses", verseSplice _3 p) ]
-    chunks2 <- C.withLocalSplices splices [] C.runChildren
-    return $ chunks1 <> chunks2 
-    -- return . C.yieldRuntime . C.codeGen $ chunks1 <> chunks2 
+    C.withSplices C.runChildren 
+        [ 
+          ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) ),
+          ("poemtitle", C.pureSplice . textSpliceUtf8 $ (^._2) ),
+          ("verses",    C.repromise' (return . (^._3)) verseSplice ) 
+        ] $ vs
+
+verseSplice :: C.Promise [(Integer,T.Text)] -> C.Splice (Handler b b)
+verseSplice promise = 
+    let splicefuncs :: Monad n => [(T.Text, C.Promise (Integer,T.Text) -> C.Splice n)]
+        splicefuncs = C.pureSplices . textSplicesUtf8 $ 
+                        [ 
+                          ("verseid", showIntegral . (^._1)),
+                          ("verse", (^._2)) 
+                        ]
+    in C.manyWithSplices C.runChildren splicefuncs $ C.getPromise promise 
 
 ------------------------------------------------------------------------------
 
