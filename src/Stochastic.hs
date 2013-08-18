@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
 
 ------------------------------------------------------------------------------
 -- | This module defines our application's state type and an alias for its
@@ -91,16 +92,16 @@ data StochasticText = StochasticText
 
 makeLenses ''StochasticText
 
-present :: MonadIO m => StochasticText -> m (Integer,[(Integer,T.Text)])
+present :: MonadIO m => StochasticText -> m (Integer,T.Text,[(Integer,T.Text)])
 present snaplet = do
     time <- liftIO getCurrentTime 
     sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
     let sempiternity'' =  purgePast time sempiternity'
         headChange = S.head (sempiternity''^.mutations)
         verses = S.index <$> (sempiternity''^.origin) <*> (snaplet^.verseStream) 
-        renderedVerses = 
+        ((_,title) : renderedVerses) = -- index 0 reserved for title
             genericTake (snaplet^.verseCount) . F.toList . S.indexed $ verses 
-    return (headChange^.iteration,renderedVerses)
+    return (headChange^.iteration, title, renderedVerses)
 
 calctimes :: UTCTime -> S.Stream Change -> S.Stream (Change,UTCTime)  
 calctimes time changes = 
@@ -168,31 +169,32 @@ showIntegral :: Integral a => a -> T.Text
 showIntegral = toStrict. toLazyText . decimal
 
 ------------------------------------------------------------------------------
-verseSplice :: C.Promise (Integer,[(Integer,T.Text)]) ->  C.Splice (Handler b b)
-verseSplice promise = 
-    let splicemap :: Monad n => [(T.Text, C.Promise (Integer,T.Text) -> C.Splice n)]
-        splicemap = C.pureSplices . textSplicesUtf8 $ 
-                        [ ("verse", snd), 
-                          ("verseid", showIntegral . fst ) ]
-    in C.manyWithSplices C.runChildren splicemap $ snd <$> C.getPromise promise 
+verseSplice :: Simple Lens s [(Integer,T.Text)] ->
+               C.Promise s ->  
+               C.Splice (Handler b b)
+verseSplice lens promise = 
+    let splicefuncs :: Monad n => [(T.Text, C.Promise (Integer,T.Text) -> C.Splice n)]
+        splicefuncs = C.pureSplices . textSplicesUtf8 $ 
+                        [ ("verseid", showIntegral . fst),
+                          ("verse", snd) ]
+    in C.manyWithSplices C.runChildren splicefuncs $ 
+            flip (^.) lens <$> C.getPromise promise 
 
-iterationSplice :: C.Promise (Integer,[(Integer,T.Text)]) -> C.Splice (Handler b b)
-iterationSplice promise = 
+spliceField :: Simple Lens s t -> (t -> T.Text) -> C.Promise s -> C.Splice (Handler b b)
+spliceField lens toText promise =  
     return $ C.yieldRuntimeText $    
-        showIntegral . fst <$> C.getPromise promise 
+        toText . flip (^.) lens <$> C.getPromise promise 
 
 poemSplice :: forall b. SnapletLens b StochasticText ->  C.Splice (Handler b b)
 poemSplice lens = do
     p <- C.newEmptyPromise
-    let vs :: RuntimeSplice (Handler b b) (Integer,[(Integer,T.Text)])
+    let vs :: RuntimeSplice (Handler b b) (Integer,T.Text,[(Integer,T.Text)])
         vs = lift . withTop lens $ get >>= liftIO . present
     chunks1 <- return . C.yieldRuntimeEffect $ vs >>= C.putPromise p
-    let localSplices =  [ 
-                           ("poemtitle", return $ C.yieldPureText "foooo"),
-                           ("iteration", iterationSplice p),
-                           ("verses", verseSplice p) 
-                        ]
-    chunks2 <- C.withLocalSplices localSplices [] C.runChildren
+    let splices =  [ ("iteration", spliceField _1 showIntegral p),
+                     ("poemtitle", spliceField _2 id p),
+                     ("verses", verseSplice _3 p) ]
+    chunks2 <- C.withLocalSplices splices [] C.runChildren
     return $ chunks1 <> chunks2 
     -- return . C.yieldRuntime . C.codeGen $ chunks1 <> chunks2 
 

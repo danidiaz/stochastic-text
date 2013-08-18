@@ -7,9 +7,9 @@
   </head>
   <body>
     <poem>
-        <div>
+        <div id="poem" iteration="${iteration}">
             <h1><poemtitle/></h1> 
-            <div id="poembody" iteration="${iteration}">
+            <div>
                 <verses><p verseid="${verseid}"><verse/></p></verses>
             </div>
         </div>

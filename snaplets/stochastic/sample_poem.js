@@ -1,6 +1,7 @@
 {
    "french":      
-        ["Du temps que la Nature en sa verve puissante",
+        ["La Géante",
+         "Du temps que la Nature en sa verve puissante",
          "Concevait chaque jour des enfants monstrueux,",
          "J'eusse aimé vivre auprès d'une jeune géante,",
          "Comme aux pieds d'une reine un chat voluptueux.",
@@ -15,7 +16,8 @@
          "Dormir nonchalamment à l'ombre de ses seins,",
          "Comme un hameau paisible au pied d'une montagne."],
     "english":
-       ["In those times when Nature in powerful zest",
+       ["The Giantess",
+        "In those times when Nature in powerful zest",
         "Conceived each day monstrous children,",
         "I would have loved to live near a young giantess,",
         "A voluptuous cat at the feet of a queen.",
@@ -30,7 +32,8 @@
         "To sleep carelessly in the shadow of her breasts, ",
         "Like a peaceful village at the foot of a mountain."],
     "spanish":
-       ["Cuando Natura en su inspiración pujante",
+       ["La Giganta",
+        "Cuando Natura en su inspiración pujante",
         "Concebía cada día hijos monstruosos,",
         "Me hubiera placido vivir cerca de una joven giganta,",
         "Como a los pies de una reina un gato voluptuoso.",
