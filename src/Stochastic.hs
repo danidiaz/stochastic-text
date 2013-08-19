@@ -9,9 +9,8 @@
 module Stochastic where
 
 ------------------------------------------------------------------------------
-import Control.Lens hiding ((<|))
-import Snap.Snaplet
-
+import           Control.Lens hiding ((<|))
+import           Snap.Snaplet
 import           System.FilePath
 import           Data.Foldable as F
 import           Data.Distributive as D
@@ -170,20 +169,21 @@ showIntegral = toStrict. toLazyText . decimal
 
 ------------------------------------------------------------------------------
 
-present' :: forall b. SnapletLens b StochasticText -> 
-            RuntimeSplice (Handler b b) (Integer,T.Text,[(Integer,T.Text)])
-present' lens = lift . withTop lens $ liftIO . present =<< get
+currentPoemH :: SnapletLens b StochasticText -> 
+                Handler b b (Integer,T.Text,[(Integer,T.Text)])
+currentPoemH lens = withTop lens $ liftIO . present =<< get
 
-poemSplice :: RuntimeSplice (Handler b b) (Integer,T.Text,[(Integer,T.Text)]) -> 
-              C.Splice (Handler b b)
-poemSplice = C.withSplices C.runChildren [ 
+poemSplice :: Monad n => RuntimeSplice n (Integer,T.Text,[(Integer,T.Text)]) -> 
+                         C.Splice n
+poemSplice = C.withSplices C.runChildren 
+        [ 
           ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) ),
           ("poemtitle", C.pureSplice . textSpliceUtf8 $ (^._2) ),
-          ("verses",  verseSplice  . fmap (^._3) . C.getPromise) 
+          ("verses",  verseSplice  . liftM (^._3) . C.getPromise) 
         ]
 
-verseSplice :: RuntimeSplice (Handler b b) [(Integer,T.Text)] -> 
-               C.Splice (Handler b b)
+verseSplice :: Monad n => RuntimeSplice n [(Integer,T.Text)] -> 
+                          C.Splice n
 verseSplice = C.manyWithSplices C.runChildren splicefuncs 
     where
     splicefuncs = C.pureSplices . textSplicesUtf8 $ 
@@ -194,13 +194,13 @@ verseSplice = C.manyWithSplices C.runChildren splicefuncs
 
 ------------------------------------------------------------------------------
 
-addPoemSplices :: HasHeist b => Snaplet (Heist b) 
-                                   -> SnapletLens b StochasticText
-                                   -> Initializer b v ()
+addPoemSplices :: HasHeist b => Snaplet (Heist b) -> 
+                                SnapletLens b StochasticText -> 
+                                Initializer b v ()
 addPoemSplices h poem = addConfig h $ mempty 
-        {
-            hcCompiledSplices = [ ("poem", poemSplice $ present' poem) ] 
-        } 
+    {
+        hcCompiledSplices = [("poem", poemSplice . lift $ currentPoemH poem)] 
+    } 
 
 ------------------------------------------------------------------------------
 
