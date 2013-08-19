@@ -62,8 +62,8 @@ type Verse = T.Text
 
 type Multiverse = S.Stream Verse
 
-asecond :: NominalDiffTime 
-asecond = (10^6)^.microNominalDiffTime 
+seconds :: Integer -> NominalDiffTime 
+seconds s = ((fromInteger s)*(10^6))^.microNominalDiffTime 
 
 data Change = Change
     {   _iteration :: Integer,
@@ -91,8 +91,8 @@ data StochasticText = StochasticText
 
 makeLenses ''StochasticText
 
-present :: MonadIO m => StochasticText -> m (Integer,T.Text,[(Integer,T.Text)])
-present snaplet = do
+currentPoem :: MonadIO m => StochasticText -> m (Integer,T.Text,[(Integer,T.Text)])
+currentPoem snaplet = do
     time <- liftIO getCurrentTime 
     sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
     let sempiternity'' =  purgePast time sempiternity'
@@ -102,8 +102,8 @@ present snaplet = do
             genericTake (snaplet^.verseCount) . F.toList . S.indexed $ verses 
     return (headChange^.iteration, title, renderedVerses)
 
-calctimes :: UTCTime -> S.Stream Change -> S.Stream (Change,UTCTime)  
-calctimes time changes = 
+calcTimes :: UTCTime -> S.Stream Change -> S.Stream (Change,UTCTime)  
+calcTimes time changes = 
     let go :: UTCTime -> Change -> (UTCTime,(Change,UTCTime))   
         go base change = 
             let newtime = base .+^ (change ^. diffTime)
@@ -125,7 +125,7 @@ applyChanges changes stream =
 purgePast :: UTCTime -> Sempiternity -> Sempiternity 
 purgePast time sempiternity = 
     let (changes,stream) =  splitByTime time
-                          . calctimes (sempiternity^.baseTime) 
+                          . calcTimes (sempiternity^.baseTime) 
                           $ sempiternity^.mutations   
         newBase = applyChanges changes (sempiternity^.origin)
     in Sempiternity time newBase stream 
@@ -150,7 +150,7 @@ futurify :: StdGen -> Integer -> Integer -> S.Stream Change
 futurify seed langCount' verseCount' = 
     let (s',s'') = runRand getSplit seed
     in Change <$> S.tabulate id
-              <*> S.repeat asecond
+              <*> S.repeat (seconds 1)
               <*> ristream verseCount' s'
               <*> ristream langCount' s''
 
@@ -171,17 +171,16 @@ showIntegral = toStrict. toLazyText . decimal
 
 currentPoemH :: SnapletLens b StochasticText -> 
                 Handler b b (Integer,T.Text,[(Integer,T.Text)])
-currentPoemH lens = withTop lens $ liftIO . present =<< get
+currentPoemH lens = withTop lens $ liftIO . currentPoem =<< get
 
 poemSplice :: Monad n => RuntimeSplice n (Integer,T.Text,[(Integer,T.Text)]) -> 
                          C.Splice n
 poemSplice = C.withSplices C.runChildren splicefuncs 
     where
     splicefuncs = 
-        [ 
-          ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) ),
+        [ ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) ),
           ("poemtitle", C.pureSplice . textSpliceUtf8 $ (^._2) ),
-          ("verses",  verseSplice  . liftM (^._3) . C.getPromise) 
+          ("verses",  verseSplice . liftM (^._3) . C.getPromise) 
         ]
 
 verseSplice :: Monad n => RuntimeSplice n [(Integer,T.Text)] -> 
@@ -189,8 +188,7 @@ verseSplice :: Monad n => RuntimeSplice n [(Integer,T.Text)] ->
 verseSplice = C.manyWithSplices C.runChildren splicefuncs 
     where
     splicefuncs = C.pureSplices . textSplicesUtf8 $ 
-        [ 
-          ("verseid", showIntegral . (^._1)),
+        [ ("verseid", showIntegral . (^._1)),
           ("verse", (^._2)) 
         ]
 
@@ -205,6 +203,21 @@ addPoemSplices h poem = addConfig h $ mempty
     } 
 
 ------------------------------------------------------------------------------
+
+threadDelay' :: NominalDiffTime -> IO () 
+threadDelay' delay = threadDelay . fromIntegral $ 
+                        delay ^. from microNominalDiffTime
+
+langolier :: NominalDiffTime -> NominalDiffTime -> MVar Sempiternity -> IO ()
+langolier delay distanceToPast sempiternity' = do
+    threadDelay' distanceToPast -- give time for the past to form
+    forever $ do
+        threadDelay' delay
+        now <- liftIO getCurrentTime  
+        let newPast = now .-^ distanceToPast  
+        putStrLn $ show newPast
+        modifyMVar_ sempiternity' $ return . purgePast newPast 
+
 
 initVerses :: SnapletInit b StochasticText
 initVerses  = do
@@ -227,8 +240,9 @@ initVerses  = do
             mutations' = futurify s'' langCount' verseCount' 
         snaplet <- StochasticText langCount' verseCount' verses <$>
                        (liftIO . newMVar $ Sempiternity now origin' mutations')
-        liftIO . forkIO . forever $  
-            threadDelay 1000000 >> putStrLn "This is a refresh action."
+        liftIO . forkIO $ langolier (seconds 10) 
+                                    (seconds 30)   
+                                    (snaplet ^. sempiternity) 
         return snaplet 
 
 ------------------------------------------------------------------------------
