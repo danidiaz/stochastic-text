@@ -57,6 +57,7 @@ handleUpdateRequest = do
     changeBatch <- get 
     let render iteration count = do
         get >>= liftIO . readChangeBatch iteration count >>= writeJSON
+            -- >>= return . (^.strict) . encode . toJSON 
     maybe (writeText "FOOO")
           (uncurry render)
           ((,) <$> miteration <*> mcount)
