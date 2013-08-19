@@ -215,7 +215,6 @@ langolier delay distanceToPast sempiternity' = do
         threadDelay' delay
         now <- liftIO getCurrentTime  
         let newPast = now .-^ distanceToPast  
-        putStrLn $ show newPast
         modifyMVar_ sempiternity' $ return . purgePast newPast 
 
 
