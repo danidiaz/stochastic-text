@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RankNTypes #-}
 
 ------------------------------------------------------------------------------
 -- | This module defines our application's state type and an alias for its
@@ -11,6 +10,7 @@ module Stochastic where
 ------------------------------------------------------------------------------
 import           Control.Lens hiding ((<|))
 import           Snap.Snaplet
+import           Snap.Extras.JSON
 import           System.FilePath
 import           Data.Foldable as F
 import           Data.Distributive as D
@@ -52,6 +52,8 @@ import           Blaze.ByteString.Builder.Char.Utf8
 
 import           Control.Monad.Random
 import           System.Random
+
+import           Util -- out own utils
 
 import           Debug.Trace
 
@@ -101,6 +103,12 @@ currentPoem snaplet = do
         ((_,title) : renderedVerses) = -- index 0 reserved for title
             genericTake (snaplet^.verseCount) . F.toList . S.indexed $ verses 
     return (headChange^.iteration, title, renderedVerses)
+
+readChangeBatch :: MonadIO m => Integer -> Integer -> StochasticText -> m [(Integer,T.Text)]  
+readChangeBatch index count snaplet = do
+    sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
+    let (_,rest) =  S.split ((index<=) . (^.iteration)) $ sempiternity'^.mutations   
+    return $ take (fromIntegral count) . F.toList $ fmap (\c -> (c^.verseIndex, "foo bñáar qux")) rest
 
 calcTimes :: UTCTime -> S.Stream Change -> S.Stream (Change,UTCTime)  
 calcTimes time changes = 
@@ -163,9 +171,6 @@ textSplicesUtf8 = C.mapSnd textSpliceUtf8
 -- | Converts a pure text splice function to a pure Builder splice function.
 textSpliceUtf8 :: (a -> T.Text) -> a -> Builder
 textSpliceUtf8 f = fromText . f
-
-showIntegral :: Integral a => a -> T.Text
-showIntegral = toStrict. toLazyText . decimal
 
 ------------------------------------------------------------------------------
 
