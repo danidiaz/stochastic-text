@@ -175,7 +175,9 @@ currentPoemH lens = withTop lens $ liftIO . present =<< get
 
 poemSplice :: Monad n => RuntimeSplice n (Integer,T.Text,[(Integer,T.Text)]) -> 
                          C.Splice n
-poemSplice = C.withSplices C.runChildren 
+poemSplice = C.withSplices C.runChildren splicefuncs 
+    where
+    splicefuncs = 
         [ 
           ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) ),
           ("poemtitle", C.pureSplice . textSpliceUtf8 $ (^._2) ),
@@ -187,10 +189,10 @@ verseSplice :: Monad n => RuntimeSplice n [(Integer,T.Text)] ->
 verseSplice = C.manyWithSplices C.runChildren splicefuncs 
     where
     splicefuncs = C.pureSplices . textSplicesUtf8 $ 
-                    [ 
-                      ("verseid", showIntegral . (^._1)),
-                      ("verse", (^._2)) 
-                    ]
+        [ 
+          ("verseid", showIntegral . (^._1)),
+          ("verse", (^._2)) 
+        ]
 
 ------------------------------------------------------------------------------
 
