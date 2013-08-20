@@ -54,10 +54,9 @@ handleUpdateRequest :: Handler App StochasticText ()
 handleUpdateRequest = do
     miteration <- getIntegerParam "iteration" 
     mcount <- getIntegerParam "count"
-    changeBatch <- get 
+    jsonResponseUtf8
     let render iteration count = do
-        get >>= liftIO . readChangeBatch iteration count >>= writeJSON
-            -- >>= return . (^.strict) . encode . toJSON 
+        get >>= liftIO . readChangeBatch iteration count >>= writeLBS . encode
     maybe (writeText "FOOO")
           (uncurry render)
           ((,) <$> miteration <*> mcount)

@@ -68,3 +68,9 @@ textSpliceUtf8 f = fromText . f
 
 showIntegral :: Integral a => a -> T.Text
 showIntegral = toStrict. toLazyText . decimal
+
+------------------------------------------------------------------------------
+
+jsonResponseUtf8 :: MonadSnap m => m ()
+jsonResponseUtf8 = 
+    modifyResponse $ setHeader "Content-Type" "application/json; charset=utf-8"
