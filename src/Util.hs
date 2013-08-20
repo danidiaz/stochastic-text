@@ -55,6 +55,16 @@ import           System.Random
 import           Debug.Trace
 
 ------------------------------------------------------------------------------
+---- | Converts pure text splices to pure Builder splices.
+textSplicesUtf8 :: [(T.Text, a -> T.Text)] -> [(T.Text, a -> Builder)]
+textSplicesUtf8 = C.mapSnd textSpliceUtf8
+
+--------------------------------------------------------------------------------
+-- | Converts a pure text splice function to a pure Builder splice function.
+textSpliceUtf8 :: (a -> T.Text) -> a -> Builder
+textSpliceUtf8 f = fromText . f
+
+------------------------------------------------------------------------------
 
 showIntegral :: Integral a => a -> T.Text
 showIntegral = toStrict. toLazyText . decimal

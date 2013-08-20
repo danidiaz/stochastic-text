@@ -8,9 +8,13 @@
   <body>
     <poem>
         <div id="poem" iteration="${iteration}">
-            <h1><poemtitle/></h1> 
+            <h1><poemtitle>Dummy title</poemtitle></h1> 
             <div>
-                <verses><p verseid="${verseid}"><verse/></p></verses>
+                <verses>
+                    <p verseid="${verseid}">
+                        <verse>Dummy verse</verse>
+                    </p>
+                </verses>
             </div>
         </div>
     </poem>

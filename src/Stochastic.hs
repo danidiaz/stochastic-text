@@ -104,11 +104,13 @@ currentPoem snaplet = do
             genericTake (snaplet^.verseCount) . F.toList . S.indexed $ verses 
     return (headChange^.iteration, title, renderedVerses)
 
-readChangeBatch :: MonadIO m => Integer -> Integer -> StochasticText -> m [(Integer,T.Text)]  
+readChangeBatch :: MonadIO m => Integer -> Integer -> StochasticText -> m [(Integer,Integer,T.Text)]  
 readChangeBatch index count snaplet = do
     sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
     let (_,rest) =  S.split ((index<=) . (^.iteration)) $ sempiternity'^.mutations   
-    return $ take (fromIntegral count) . F.toList $ fmap (\c -> (c^.verseIndex, "foo bñáar qux")) rest
+    return $ take (fromIntegral count) . F.toList $ 
+            fmap (\c -> (fromIntegral $ c^.diffTime^.from microNominalDiffTime, c^.verseIndex,
+                          (S.index (c^.languageIndex) (S.index (c^.verseIndex) (snaplet^.verseStream))))) rest 
 
 calcTimes :: UTCTime -> S.Stream Change -> S.Stream (Change,UTCTime)  
 calcTimes time changes = 
@@ -163,16 +165,6 @@ futurify seed langCount' verseCount' =
               <*> ristream langCount' s''
 
 ------------------------------------------------------------------------------
----- | Converts pure text splices to pure Builder splices.
-textSplicesUtf8 :: [(T.Text, a -> T.Text)] -> [(T.Text, a -> Builder)]
-textSplicesUtf8 = C.mapSnd textSpliceUtf8
-
---------------------------------------------------------------------------------
--- | Converts a pure text splice function to a pure Builder splice function.
-textSpliceUtf8 :: (a -> T.Text) -> a -> Builder
-textSpliceUtf8 f = fromText . f
-
-------------------------------------------------------------------------------
 
 currentPoemH :: SnapletLens b StochasticText -> 
                 Handler b b (Integer,T.Text,[(Integer,T.Text)])
@@ -183,9 +175,9 @@ poemSplice :: Monad n => RuntimeSplice n (Integer,T.Text,[(Integer,T.Text)]) ->
 poemSplice = C.withSplices C.runChildren splicefuncs 
     where
     splicefuncs = 
-        [ ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) ),
-          ("poemtitle", C.pureSplice . textSpliceUtf8 $ (^._2) ),
-          ("verses",  verseSplice . liftM (^._3) . C.getPromise) 
+        [ ("iteration", C.pureSplice . textSpliceUtf8 $ showIntegral . (^._1) )
+        , ("poemtitle", C.pureSplice . textSpliceUtf8 $ (^._2) )
+        , ("verses",  verseSplice . liftM (^._3) . C.getPromise) 
         ]
 
 verseSplice :: Monad n => RuntimeSplice n [(Integer,T.Text)] -> 
@@ -193,8 +185,8 @@ verseSplice :: Monad n => RuntimeSplice n [(Integer,T.Text)] ->
 verseSplice = C.manyWithSplices C.runChildren splicefuncs 
     where
     splicefuncs = C.pureSplices . textSplicesUtf8 $ 
-        [ ("verseid", showIntegral . (^._1)),
-          ("verse", (^._2)) 
+        [ ("verseid", showIntegral . (^._1))
+        , ("verse", (^._2)) 
         ]
 
 ------------------------------------------------------------------------------
