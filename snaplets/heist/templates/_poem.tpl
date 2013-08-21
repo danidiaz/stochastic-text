@@ -19,6 +19,6 @@
         </div>
     </poem>
 
-      <script src="/js/poll.js"></script>
+  <script src="/js/poll.js"></script>
   </body>
 </html>
