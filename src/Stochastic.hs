@@ -93,7 +93,8 @@ data StochasticText = StochasticText
 
 makeLenses ''StochasticText
 
-currentPoem :: MonadIO m => StochasticText -> m (Integer,T.Text,[(Integer,T.Text)])
+currentPoem :: MonadIO m => StochasticText 
+                         -> m (Integer,T.Text,[(Integer,T.Text)])
 currentPoem snaplet = do
     time <- liftIO getCurrentTime 
     sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
@@ -104,13 +105,20 @@ currentPoem snaplet = do
             genericTake (snaplet^.verseCount) . F.toList . S.indexed $ verses 
     return (headChange^.iteration, title, renderedVerses)
 
-readChangeBatch :: MonadIO m => Integer -> Integer -> StochasticText -> m [(Integer,Integer,T.Text)]  
-readChangeBatch index count snaplet = do
+readChangeBatch :: MonadIO m => Integer 
+                             -> Integer 
+                             -> StochasticText 
+                             -> m [(Integer,Integer,T.Text)]  
+readChangeBatch i count snaplet = do
     sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
-    let (_,rest) =  S.split ((index<=) . (^.iteration)) $ sempiternity'^.mutations   
-    return $ take (fromIntegral count) . F.toList $ 
-            fmap (\c -> (fromIntegral $ c^.diffTime^.from microNominalDiffTime, c^.verseIndex,
-                          (S.index (c^.languageIndex) (S.index (c^.verseIndex) (snaplet^.verseStream))))) rest 
+    let (_,rest) = sempiternity'^.mutations^.to (S.split $ (<=) i . _iteration)
+        triplet c = ( 
+                      c^.diffTime^.from microNominalDiffTime^.to fromIntegral
+                    , c^.verseIndex
+                    , snaplet^.verseStream^.to (c^.verseIndex^.to S.index)
+                                          ^.to (c^.languageIndex^.to S.index)
+                    )
+    return $ genericTake count . F.toList $ fmap triplet rest 
 
 calcTimes :: UTCTime -> S.Stream Change -> S.Stream (Change,UTCTime)  
 calcTimes time changes = 
@@ -200,10 +208,6 @@ addPoemSplices h poem = addConfig h $ mempty
     } 
 
 ------------------------------------------------------------------------------
-
-threadDelay' :: NominalDiffTime -> IO () 
-threadDelay' delay = threadDelay . fromIntegral $ 
-                        delay ^. from microNominalDiffTime
 
 langolier :: NominalDiffTime -> NominalDiffTime -> MVar Sempiternity -> IO ()
 langolier delay distanceToPast sempiternity' = do

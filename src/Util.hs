@@ -74,3 +74,10 @@ showIntegral = toStrict. toLazyText . decimal
 jsonResponseUtf8 :: MonadSnap m => m ()
 jsonResponseUtf8 = 
     modifyResponse $ setHeader "Content-Type" "application/json; charset=utf-8"
+
+------------------------------------------------------------------------------
+
+threadDelay' :: NominalDiffTime -> IO () 
+threadDelay' delay = threadDelay $ 
+                        delay^.from microNominalDiffTime^.to fromIntegral
+
