@@ -109,9 +109,10 @@ readChangeBatch :: MonadIO m => Integer
                              -> Integer 
                              -> StochasticText 
                              -> m [(Integer,Integer,T.Text)]  
-readChangeBatch i count snaplet = do
+readChangeBatch limit count snaplet = do
     sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
-    let (_,rest) = sempiternity'^.mutations^.to (S.split $ (<=) i . _iteration)
+    let (_,rest) = sempiternity'^.mutations
+                                ^.to (S.split $ (<=) limit . _iteration)
         triplet c = ( 
                       c^.diffTime^.from microNominalDiffTime^.to fromIntegral
                     , c^.verseIndex
@@ -130,20 +131,20 @@ calcTimes time changes =
 
 splitByTime :: UTCTime -> S.Stream (Change,UTCTime) -> ([Change],S.Stream Change)
 splitByTime time stream = 
-    let (prefix,stream') = S.split ( (time<) . snd ) stream
+    let (prefix,stream') = S.split ( (<) time . snd ) stream
     in (fmap fst prefix, fmap fst stream') 
 
 applyChanges :: [Change] -> S.Stream Integer -> S.Stream Integer
 applyChanges changes stream = 
     let go stream change = S.adjust (change^.verseIndex) 
-                                    (const $ change^.languageIndex) 
+                                    (change^.languageIndex^.to const) 
                                     stream
     in F.foldl' go stream changes 
 
 purgePast :: UTCTime -> Sempiternity -> Sempiternity 
 purgePast time sempiternity = 
     let (changes,stream) =  splitByTime time
-                          . calcTimes (sempiternity^.baseTime) 
+                          $ sempiternity^.baseTime^.to calcTimes 
                           $ sempiternity^.mutations   
         newBase = applyChanges changes (sempiternity^.origin)
     in Sempiternity time newBase stream 
@@ -242,7 +243,7 @@ initVerses  = do
                        (liftIO . newMVar $ Sempiternity now origin' mutations')
         liftIO . forkIO $ langolier (seconds 10) 
                                     (seconds 30)   
-                                    (snaplet ^. sempiternity) 
+                                    (snaplet^.sempiternity) 
         return snaplet 
 
 ------------------------------------------------------------------------------
