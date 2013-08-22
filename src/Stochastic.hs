@@ -65,7 +65,7 @@ type Verse = T.Text
 type Multiverse = S.Stream Verse
 
 seconds :: Integer -> NominalDiffTime 
-seconds s = ((fromInteger s)*(10^6))^.microNominalDiffTime 
+seconds s = s^.to fromInteger^.to ((*) (10^6))^.microNominalDiffTime
 
 data Change = Change
     {   _iteration :: Integer,
@@ -112,7 +112,7 @@ readChangeBatch :: MonadIO m => Integer
 readChangeBatch limit count snaplet = do
     sempiternity' <- liftIO . readMVar $ snaplet^.sempiternity 
     let (_,rest) = sempiternity'^.mutations
-                                ^.to (S.split $ (<=) limit . _iteration)
+                                ^.to (S.split $ (<=) limit . view iteration)
         triplet c = ( 
                       c^.diffTime^.from microNominalDiffTime^.to fromIntegral
                     , c^.verseIndex
