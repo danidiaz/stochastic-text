@@ -93,3 +93,10 @@ prepend :: S.Stream a -> [a] -> S.Stream a
 prepend stream = F.foldr (<|) stream 
 
 
+------------------------------------------------------------------------------
+seconds :: Integer -> NominalDiffTime 
+seconds s = s^.to fromInteger^.to ((*) (10^6))^.microNominalDiffTime
+
+
+
+

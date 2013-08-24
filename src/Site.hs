@@ -56,7 +56,8 @@ handleUpdateRequest = do
     mcount <- getIntegerParam "count"
     jsonResponseUtf8
     let render iteration count = do
-        get >>= liftIO . readChangeBatch iteration count >>= writeLBS . encode
+        get >>= liftIO . synch (readChangeBatch iteration count) 
+            >>= writeLBS . encode
     maybe (writeText "FOOO")
           (uncurry render)
           ((,) <$> miteration <*> mcount)
