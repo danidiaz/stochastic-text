@@ -114,7 +114,9 @@ readChangeBatch limit count snaplet = do
     let (_,rest) = sempiternity'^.mutations
                                 ^.to (S.split $ (<=) limit . view iteration)
         triplet c = ( 
-                      c^.diffTime^.from microNominalDiffTime^.to fromIntegral
+                      c^.diffTime^.from microNominalDiffTime
+                                 ^.to (flip div 1000)
+                                 ^.to fromIntegral
                     , c^.verseIndex
                     , snaplet^.verseStream^.to (c^.verseIndex^.to S.index)
                                           ^.to (c^.languageIndex^.to S.index)
@@ -151,19 +153,12 @@ purgePast time sempiternity =
 
 ------------------------------------------------------------------------------
 
-prepend :: S.Stream a -> [a] -> S.Stream a 
-prepend stream = F.foldr (<|) stream 
-
 compile :: (S.Stream (S.Stream a)) -> 
            [[a]] -> 
            S.Stream (S.Stream a)
 compile filler xss = prepend <$> filler <*> prepend (S.repeat []) xss 
 
 ------------------------------------------------------------------------------
-
-ristream :: Integer -> StdGen -> S.Stream Integer    
-ristream bound seed = flip evalRand seed $ do
-    TR.sequence . S.repeat $ getRandomR (0, pred bound) 
 
 futurify :: StdGen -> Integer -> Integer -> S.Stream Change
 futurify seed langCount' verseCount' = 
