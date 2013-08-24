@@ -8,10 +8,14 @@
   <body>
     <poem>
         <div id="poem" iteration="${iteration}">
-            <h1><poemtitle>Dummy title</poemtitle></h1> 
+            <h1>
+                <span id="poemtitle">
+                    <poemtitle>Dummy title</poemtitle>
+                </span>
+            </h1> 
             <div>
                 <verses>
-                    <p verseid="${verseid}">
+                    <p id="v${verseid}">
                         <verse>Dummy verse</verse>
                     </p>
                 </verses>

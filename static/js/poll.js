@@ -17,11 +17,19 @@ function scheduleChange(changeBatch,index) {
 // The function that goes into the timer.
 function executeChange(changeBatch,index) {
     var change = changeBatch[index];
-    var index = change[1];
+    var verseIndex = change[1];
     var verseText = change[2];
 
-    alert(index);
-    alert(verseText);
+    if (verseIndex == 0) {
+        document.getElementById('poemtitle').innerHTML = verseText; 
+    } else {
+        document.getElementById('v'+verseIndex).innerHTML = verseText; 
+    } 
+
+    // alert(verseIndex);
+    // alert(verseText);
+
+    scheduleChange(changeBatch,index+1);
 }
 
 window.onload = function()
