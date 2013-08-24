@@ -1,21 +1,23 @@
-function processChangeBatch(changeBatch) {
-
-//    for (var i = 0; i < changeBatch.length; i++) {
-//            alert(changeBatch[i][2]);
-//        }
-//    alert(alertText);
-    scheduleChange(changeBatch,0);
+function requestChangeBatch(baseIndex, batchSize) {
+    
+    req = new XMLHttpRequest();
+    req.open('GET','updates/' + baseIndex + '/' + batchSize); 
+    req.onreadystatechange = function(){
+           if(req.readyState == 4){
+               scheduleChange(baseIndex, 0, JSON.parse(req.responseText));       
+           }
+        }
+    req.send();
 }
 
-function scheduleChange(changeBatch,index) {
+function scheduleChange(baseIndex,index,changeBatch) {
     var change = changeBatch[index];
     var delayMilis = change[0];
 
-    setTimeout(function() { executeChange(changeBatch,index); } ,delayMilis);  
+    setTimeout(function() { executeChange(baseIndex, index, changeBatch); }, delayMilis);  
 }
 
-// The function that goes into the timer.
-function executeChange(changeBatch,index) {
+function executeChange(baseIndex,index,changeBatch) {
     var change = changeBatch[index];
     var verseIndex = change[1];
     var verseText = change[2];
@@ -23,28 +25,22 @@ function executeChange(changeBatch,index) {
     if (verseIndex == 0) {
         document.getElementById('poemtitle').innerHTML = verseText; 
     } else {
-        document.getElementById('v'+verseIndex).innerHTML = verseText; 
+        document.getElementById('V'+verseIndex).innerHTML = verseText; 
     } 
 
-    // alert(verseIndex);
-    // alert(verseText);
-
-    scheduleChange(changeBatch,index+1);
+    var nextIndex = index + 1;
+    var batchSize = changeBatch.length;
+    if (nextIndex == batchSize) {
+        requestChangeBatch(baseIndex + batchSize, batchSize);
+    } else {
+        scheduleChange(baseIndex,nextIndex,changeBatch);
+    } 
 }
 
 window.onload = function()
 {
-    window.iteration = document.getElementById('poem')
-                               .getAttribute('iteration');
-    window.batchsize = 20;
-
-    req = new XMLHttpRequest();
-    req.open('GET','updates/' + iteration + '/' + batchsize); 
-    req.onreadystatechange = function(){
-           if(req.readyState == 4){
-               processChangeBatch(JSON.parse(req.responseText));       
-           }
-        }
-    req.send();
+    iteration = document.getElementById('poem')
+                        .getAttribute('iteration');
+    requestChangeBatch(iteration,20);
 };
 

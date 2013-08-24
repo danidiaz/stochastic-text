@@ -15,7 +15,7 @@
             </h1> 
             <div>
                 <verses>
-                    <p id="v${verseid}">
+                    <p id="V${verseid}">
                         <verse>Dummy verse</verse>
                     </p>
                 </verses>
