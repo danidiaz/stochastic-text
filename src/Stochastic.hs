@@ -174,7 +174,7 @@ futurify :: StdGen -> Integer -> Integer -> S.Stream Change
 futurify seed langCount' verseCount' = 
     let (s',s'') = runRand getSplit seed
     in Change <$> S.tabulate id
-              <*> S.repeat (seconds 1)
+              <*> S.repeat (milis 1000)
               <*> ristream verseCount' s'
               <*> ristream langCount' s''
 
@@ -248,8 +248,8 @@ initVerses  = do
             mutations' = futurify s'' langCount' verseCount' 
         snaplet <- StochasticText (Eternity langCount' verseCount' verses) <$>
                        (liftIO . newMVar $ Sempiternity now origin' mutations')
-        liftIO . forkIO $ langolier (seconds 10) 
-                                    (seconds 30)   
+        liftIO . forkIO $ langolier (milis 10000) 
+                                    (milis 30000)   
                                     (snaplet^.sempiternity) 
         return snaplet 
 
