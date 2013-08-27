@@ -39,8 +39,8 @@ function executeChange(baseIndex,index,changeBatch) {
 
 window.onload = function()
 {
-    iteration = document.getElementById('poem')
-                        .getAttribute('iteration');
+    iteration = parseInt ( document.getElementById('poem')
+                                   .getAttribute('iteration') );
     requestChangeBatch(iteration,20);
 };
 
