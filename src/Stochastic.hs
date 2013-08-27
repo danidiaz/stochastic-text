@@ -183,7 +183,7 @@ futurify eternity = do
                         -- number of alternatives to a given verse is lc - 1 
                         <*> getRandomR (0, lc - 2) 
     let updateStream stream (vi,li) = 
-            let li' = if stream S.!! vi >= li then li + 1 else li
+            let li' = if li >= stream S.!! vi then li + 1 else li
             in (S.update vi li' stream, (vi,li'))
         changes = ((fmap (fmap uncurry)) Change) 
                     <$> S.tabulate id
