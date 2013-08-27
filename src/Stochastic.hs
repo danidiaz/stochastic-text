@@ -170,13 +170,36 @@ compile filler xss = prepend <$> filler <*> prepend (S.repeat []) xss
 
 ------------------------------------------------------------------------------
 
-futurify :: StdGen -> Integer -> Integer -> S.Stream Change
-futurify seed langCount' verseCount' = 
-    let (s',s'') = runRand getSplit seed
-    in Change <$> S.tabulate id
-              <*> S.repeat (milis 1000)
-              <*> ristream verseCount' s'
-              <*> ristream langCount' s''
+futurify :: (Applicative m, MonadRandom m) 
+          => Eternity 
+          -> m (S.Stream Integer, S.Stream Change)
+futurify eternity = do 
+    let vc = eternity^.verseCount 
+        lc = eternity^.langCount 
+    initialState <- fmap (prepend (S.repeat 0)) $ 
+        TR.sequence . replicate (fromIntegral vc) $ getRandomR (0, lc - 1) 
+    randoms <- TR.sequence . S.repeat $ 
+                    (,) <$> getRandomR (0, vc - 1) 
+                        -- number of alternatives to a given verse is lc - 1 
+                        <*> getRandomR (0, lc - 2) 
+    let updateStream stream (vi,li) = 
+            let li' = if stream S.!! vi >= li then li + 1 else li
+            in (S.update vi li' stream, (vi,li'))
+        changes = ((fmap (fmap uncurry)) Change) 
+                    <$> S.tabulate id
+                    <*> S.repeat (milis 1000) 
+                    <*> (snd $ TR.mapAccumL updateStream initialState randoms)
+    return (initialState,changes)
+
+
+--futurify :: StdGen -> Eternity -> S.Stream Change
+--futurify seed e = 
+--    let (seed',seed'') = runRand getSplit seed
+--    in Change <$> S.tabulate id
+--              <*> S.repeat (milis 1000)
+--              <*> ristream (e^.verseCount) seed'
+--              -- The number of alternatives to a given verse.
+--              <*> ristream (e^.langCount - 1) seed'' 
 
 ------------------------------------------------------------------------------
 
@@ -236,7 +259,7 @@ initVerses  = do
         let mapE = first (mappend "Error loading poem: " . T.pack)
                          (eitherDecode' versebytes)
         TR.traverse printInfo $ Flip mapE
-        (s',s'') <- liftIO $ (,) <$> newStdGen <*> newStdGen  
+        seed <- liftIO newStdGen 
         now <- liftIO getCurrentTime 
         let poemz = maybe M.empty id $ hush mapE :: M.Map Langname [Verse]
             elemz = M.elems poemz -- discard the language names
@@ -244,9 +267,9 @@ initVerses  = do
             verseCount' = F.maximum . map genericLength $ elemz
             filler = S.repeat . S.repeat $ "buffalo" 
             verses = distribute $ compile filler elemz         
-            origin' = ristream langCount' s'
-            mutations' = futurify s'' langCount' verseCount' 
-        snaplet <- StochasticText (Eternity langCount' verseCount' verses) <$>
+            eternity' = Eternity langCount' verseCount' verses
+            (origin',mutations') = evalRand (futurify eternity') seed
+        snaplet <- StochasticText eternity' <$>
                        (liftIO . newMVar $ Sempiternity now origin' mutations')
         liftIO . forkIO $ langolier (milis 10000) 
                                     (milis 30000)   
