@@ -1,6 +1,6 @@
 function requestChangeBatch(baseIndex, batchSize) {
     
-    req = new XMLHttpRequest();
+    var req = new XMLHttpRequest();
     req.open('GET','updates/' + baseIndex + '/' + batchSize); 
     req.onreadystatechange = function(){
            if(req.readyState == 4){
@@ -39,8 +39,8 @@ function executeChange(baseIndex,index,changeBatch) {
 
 window.onload = function()
 {
-    iteration = parseInt ( document.getElementById('poem')
-                                   .getAttribute('iteration') );
+    var iteration = parseInt ( document.getElementById('poem')
+                                       .getAttribute('iteration') );
     requestChangeBatch(iteration,20);
 };
 
