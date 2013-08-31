@@ -82,16 +82,14 @@ threadDelay' delay = threadDelay $
                         delay^.from microNominalDiffTime^.to fromIntegral
 
 ------------------------------------------------------------------------------
---
-ristream :: Integer -> StdGen -> S.Stream Integer    
-ristream bound seed = flip evalRand seed $ do
-    TR.sequence . S.repeat $ getRandomR (0, pred bound) 
-
-
-------------------------------------------------------------------------------
 prepend :: S.Stream a -> [a] -> S.Stream a 
 prepend stream = F.foldr (<|) stream 
 
+splitCorrect :: (a -> Bool) -> S.Stream a -> S.Stream a
+splitCorrect f stream = 
+    let (_,rest) = S.split f stream
+        (head',rest') = S.uncons rest
+    in if f head' then rest else rest'
 
 ------------------------------------------------------------------------------
 

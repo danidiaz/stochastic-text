@@ -121,8 +121,8 @@ readChangeBatch :: Integer
                 -> Sempiternity 
                 -> [(Integer,Integer,T.Text)]  
 readChangeBatch limit count eternity' sempiternity' = 
-    let (_,rest) = sempiternity'^.mutations
-                                ^.to (S.split $ (<=) limit . view iteration)
+    let rest = sempiternity'^.mutations
+                            ^.to (splitCorrect $ (<=) limit . view iteration)
         triplet c = ( 
                       c^.diffTime^.from microNominalDiffTime
                                  ^.to (flip div 1000)
@@ -143,7 +143,7 @@ calcTimes time changes =
 
 splitByTime :: UTCTime -> S.Stream (Change,UTCTime) -> ([Change],S.Stream Change)
 splitByTime time stream = 
-    let (prefix,stream') = S.split ( (<) time . snd ) stream
+    let (prefix,stream') = S.break ( (<) time . snd ) stream
     in (fmap fst prefix, fmap fst stream') 
 
 applyChanges :: [Change] -> S.Stream Integer -> S.Stream Integer
