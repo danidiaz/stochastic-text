@@ -30,8 +30,8 @@ function executeChange(baseIndex,index,changeBatch) {
     if ($debug) {
         var iteration = change[3];
         console.log( 'Executing change. ' + 
-                     ' verse index=' + verseIndex + 
-                     ' iteration=' + iteration +
+                     ' verse_index=' + verseIndex + 
+                     ' index=' + iteration +
                      ' text=' + verseText
                    );
     }
