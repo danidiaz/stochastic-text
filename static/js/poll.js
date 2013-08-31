@@ -1,5 +1,10 @@
 function requestChangeBatch(baseIndex, batchSize) {
     
+    if ($debug) {
+        console.log( 'Request change batch.'+
+                     ' baseIndex=' + baseIndex +' batchSize='+batchSize);
+    }
+
     var req = new XMLHttpRequest();
     req.open('GET','updates/' + baseIndex + '/' + batchSize); 
     req.onreadystatechange = function(){
@@ -22,10 +27,27 @@ function executeChange(baseIndex,index,changeBatch) {
     var verseIndex = change[1];
     var verseText = change[2];
 
+    if ($debug) {
+        var iteration = change[3];
+        console.log( 'Executing change. ' + 
+                     ' verse index=' + verseIndex + 
+                     ' iteration=' + iteration +
+                     ' text=' + verseText
+                   );
+    }
+
     if (verseIndex == 0) {
         document.getElementById('poemtitle').innerHTML = verseText; 
     } else {
-        document.getElementById('V'+verseIndex).innerHTML = verseText; 
+        var target = document.getElementById('V'+verseIndex); 
+
+        if ($debug) {
+            if (target.innerHTML.trim() == verseText) {
+                console.log('DUPLICATED VERSE!');
+            }
+        }
+
+        target.innerHTML = verseText; 
     } 
 
     var nextIndex = index + 1;
@@ -36,6 +58,8 @@ function executeChange(baseIndex,index,changeBatch) {
         scheduleChange(baseIndex,nextIndex,changeBatch);
     } 
 }
+
+var $debug = true
 
 window.onload = function()
 {

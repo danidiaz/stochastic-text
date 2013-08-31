@@ -119,7 +119,7 @@ readChangeBatch :: Integer
                 -> Integer 
                 -> Eternity 
                 -> Sempiternity 
-                -> [(Integer,Integer,T.Text)]  
+                -> [(Integer,Integer,T.Text,Integer)]  
 readChangeBatch limit count eternity' sempiternity' = 
     let rest = sempiternity'^.mutations
                             ^.to (splitCorrect $ (<=) limit . view iteration)
@@ -130,6 +130,7 @@ readChangeBatch limit count eternity' sempiternity' =
                     , c^.verseIndex
                     , eternity'^.verseStream^.to (c^.verseIndex^.to S.index)
                                             ^.to (c^.languageIndex^.to S.index)
+                    , c^.iteration
                     )
     in genericTake count . F.toList $ fmap triplet rest 
 
